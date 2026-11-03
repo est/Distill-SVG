@@ -1,7 +1,7 @@
-# 截图 → SVG 的 SOTA 调研（2023–2026）
+# 蒸矢 / distill-svg：截图 → SVG 的 SOTA 调研（2023–2026）
 
 > 范围：GUI 截图/UI 截图的语义重建、矢量化、屏幕解析、OCR、字体、图标/emoji、照片隐私、评估与本地离线应用架构。
-> 目的：为 `caption-svg` 的 flat/wireframe、照片嵌入、可选中文本、本地离线 App 与后续原生 macOS/Windows 版本提供可执行建议。
+> 目的：为 `distill-svg` 的 flat/wireframe、照片嵌入、可选中文本、本地离线 App 与后续原生 macOS/Windows 版本提供可执行建议。
 > 证据口径：优先论文、官方 repo、官方文档与模型卡；链接在 2026-11-03 检索。**这不是法律意见**，发布前必须以实际 `LICENSE`、模型卡和字体 EULA 为准。
 >
 > 注：照片默认 `embed` 是项目决策；`placeholder/blur/scrub` 是隐私降级模式。
@@ -362,7 +362,7 @@
 
 ### 9.2 推荐路线
 
-- **v1（本地 App）**：Python core + **PySide6** 桌面壳（macOS 优先，Windows/Linux 同栈），保留 `caption-svg` CLI；现有算法/依赖全在 Python，PySide6 LGPL 可动态链接，开发最快。若 UI 设计/安装包体积是硬指标，改用 **Tauri 2 + Python sidecar**（Rust 壳 + Web UI，stdin/stdout JSON 或本地 HTTP）。
+- **v1（本地 App）**：Python core + **PySide6** 桌面壳（macOS 优先，Windows/Linux 同栈），保留 `distill-svg` CLI；现有算法/依赖全在 Python，PySide6 LGPL 可动态链接，开发最快。若 UI 设计/安装包体积是硬指标，改用 **Tauri 2 + Python sidecar**（Rust 壳 + Web UI，stdin/stdout JSON 或本地 HTTP）。
 - **契约**：**Scene JSON schema** 版本化（`schema_version`），CLI 支持 `--scene in.json --out out.svg`；App 只依赖契约，不依赖 Python 内部函数。
 - **v2（原生壳）**：macOS 用 SwiftUI + Vision + Core ML；Windows 用 WinUI 3 + Windows OCR + ONNX Runtime；Linux 保留 CLI（RapidOCR ONNX）。复杂几何仍可调用 Python sidecar，再按热点（OCR 后处理、图标匹配）逐步原生化。
 - **不要**一开始把 CV 全重写为 Swift/C#；先用“原生 UI + Python 核心”交付。

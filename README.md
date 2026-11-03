@@ -1,4 +1,6 @@
-# caption-svg
+# distill-svg（蒸矢）
+
+> 中文名：**蒸矢** —— 把截图蒸馏成可编辑的 SVG。
 
 Screenshot → **flat-color or wireframe SVG**. Panels become rectangles, text
 stays real selectable text, icons/emoji are traced, and photos/avatars are
@@ -41,25 +43,25 @@ python3 -m pip install -r requirements.txt
 ./tools/fetch_fonts.sh
 
 # full quality, flat colours, embedded photos
-python3 -m caption_svg tests/2.jpg -o out/2.svg --scene out/2.json
+python3 -m distill_svg tests/2.jpg -o out/2.svg --scene out/2.json
 
 # quickest preview: wireframe + no photo pixels + no icon tracing (~7 KiB)
-python3 -m caption_svg tests/2.jpg -o out/2-quick.svg --quick
+python3 -m distill_svg tests/2.jpg -o out/2-quick.svg --quick
 
 # wireframe with embedded grayscale photos
-python3 -m caption_svg tests/1.png -o out/1-wire.svg --style wireframe --fast
+python3 -m distill_svg tests/1.png -o out/1-wire.svg --style wireframe --fast
 
 # privacy mode: no photo pixels at all
-python3 -m caption_svg tests/2.jpg -o out/2-private.svg --photos placeholder
+python3 -m distill_svg tests/2.jpg -o out/2-private.svg --photos placeholder
 ```
 
 For Linux/Windows OCR (optional):
 
 ```bash
 python3 -m pip install rapidocr_onnxruntime
-python3 -m caption_svg shot.png --ocr-engine rapidocr
+python3 -m distill_svg shot.png --ocr-engine rapidocr
 # or cross-check Vision + RapidOCR:
-python3 -m caption_svg shot.png --ocr-engine hybrid
+python3 -m distill_svg shot.png --ocr-engine hybrid
 ```
 
 Or supply boxes from any OCR engine as JSON:

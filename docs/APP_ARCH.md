@@ -1,6 +1,6 @@
-# caption-svg 原生应用架构（v1 设计）
+# 蒸矢 / distill-svg 原生应用架构（v1 设计）
 
-> 状态：架构建议，不是已实现代码。基于当前仓库 `caption_svg` 的实际能力（flat/wireframe 两种输出、`embed/placeholder/outline` 三种照片策略、Apple Vision 与 RapidOCR 适配器、scene JSON、`<text>` 可复制文本），以及 2026-11 的官方文档。
+> 状态：架构建议，不是已实现代码。基于当前仓库 `distill_svg` 的实际能力（flat/wireframe 两种输出、`embed/placeholder/outline` 三种照片策略、Apple Vision 与 RapidOCR 适配器、scene JSON、`<text>` 可复制文本），以及 2026-11 的官方文档。
 >
 > 目标：本地/离线、隐私优先；先把管线做稳，再发可分发二进制；macOS 与 Windows 10 原生应用，Linux 只做 CLI，移动端后置。
 >
@@ -18,7 +18,7 @@
 | macOS 壳 | SwiftUI | 原生文件选择、拖放、Quick Look、Vision、沙盒、公证都最直接；不引入 WebView 和 Node |
 | Windows 壳 | WinUI 3（C#/XAML） | MSIX 身份、`Windows.Media.Ocr`、文件选择器、签名/更新链路最顺；Win10 1809+ 可跑 |
 | Linux | 只发 CLI | 没有 GUI 需求；减少 Qt/GTK 依赖和打包面积 |
-| 进程模型 | 壳启动 `caption-core` 子进程，NDJSON over stdio | 无端口、无网络面、崩溃隔离；比 FFI 稳，比 HTTP 安全 |
+| 进程模型 | 壳启动 `distill-core` 子进程，NDJSON over stdio | 无端口、无网络面、崩溃隔离；比 FFI 稳，比 HTTP 安全 |
 | 输出 | flat + wireframe；文本始终 `<text>` | 满足“可选/可复制”；照片裁剪作为显式模式 |
 | OCR | macOS Vision；Windows `Windows.Media.Ocr` + RapidOCR 兜底；Linux RapidOCR | 系统 OCR 快且离线；RapidOCR 保证中文和跨平台一致性 |
 | 字体/模型 | 默认全量随包，首次运行不下载 | “离线可用”是产品承诺；可选语言包才显式下载 |
@@ -68,9 +68,9 @@
 **推荐结构**
 
 ```
-CaptionSVG.app/
-  Contents/MacOS/CaptionSVG            # SwiftUI 壳
-  Contents/MacOS/caption-core          # Python onedir 启动器
+DistillSVG.app/
+  Contents/MacOS/DistillSVG            # SwiftUI 壳
+  Contents/MacOS/distill-core          # Python onedir 启动器
   Contents/Resources/core/             # Python runtime + site-packages + 模型/字体
   Contents/Resources/vision_ocr        # 预编译、已签名的 Swift CLI（可选）
   Contents/Frameworks/                 # 需要时放 Python/OpenCV dylib
@@ -103,8 +103,8 @@ CaptionSVG.app/
 **推荐结构**
 
 ```
-CaptionSVG.exe                 # WinUI 3 壳（C#/XAML）
-core\caption-core.exe          # Python onedir 启动器
+DistillSVG.exe                 # WinUI 3 壳（C#/XAML）
+core\distill-core.exe          # Python onedir 启动器
 core\python\...                # 运行时 + 依赖
 core\models\...                # RapidOCR ONNX
 core\fonts\...                 # Noto/Source Han
@@ -114,9 +114,9 @@ core\fonts\...                 # Noto/Source Han
 - **Windows OCR**：`Windows.Media.Ocr` 只在**有包身份的桌面应用**中受支持（MSIX 安装）。用 `OcrEngine.AvailableRecognizerLanguages` 检测语言包；中文 OCR 语言包在部分 en-US 机器上没装，必须检测并回退，不能假设一定有。
 - **不要用 Windows AI `TextRecognizer` 做 v1 默认**：Windows App SDK 的新文本识别 API 目前主要面向带 NPU 的设备（Copilot+ PC），且同样需要包身份；Win10 大范围设备不满足。v1 用 `Windows.Media.Ocr`，RapidOCR 兜底，后续再评估 NPU 路径。
 - **RapidOCR**：ONNX Runtime CPU，量化 PP-OCR 模型；模型随包、校验 SHA-256；不联网下载。它是中文一致性和“语言包缺失”场景的保险。
-- **MSIX 细节**：single-project MSIX 只支持**一个可执行文件**；我们有 `CaptionSVG.exe` + `caption-core.exe`，所以用 **Windows Application Packaging Project**（两项目）或把核心作为资源随包、由壳启动。清单声明 `runFullTrust`，不声明 `internetClient`；文件访问用 FileOpenPicker/FileSavePicker，不申请 `broadFileSystemAccess`。
+- **MSIX 细节**：single-project MSIX 只支持**一个可执行文件**；我们有 `DistillSVG.exe` + `distill-core.exe`，所以用 **Windows Application Packaging Project**（两项目）或把核心作为资源随包、由壳启动。清单声明 `runFullTrust`，不声明 `internetClient`；文件访问用 FileOpenPicker/FileSavePicker，不申请 `broadFileSystemAccess`。
 - **更新**：MSIX + `.appinstaller`，签名后自动更新；注意 `ms-appinstaller:` 协议自 2023-12 起默认禁用，用户需下载并双击 `.appinstaller`，不要做“网页一键安装”的假设。
-- **SmartScreen**：`CaptionSVG.exe` 和 MSIX 都要 Authenticode 签名；Azure Artifact Signing（原 Trusted Signing，约 $9.99/月，地区受限）或 OV 证书。**EV 从 2024 年起不再即时获得 SmartScreen 信誉**，新发布仍可能提示，持续用同一身份签名积累信誉；上 Microsoft Store 则由 Store 重签，最省事。
+- **SmartScreen**：`DistillSVG.exe` 和 MSIX 都要 Authenticode 签名；Azure Artifact Signing（原 Trusted Signing，约 $9.99/月，地区受限）或 OV 证书。**EV 从 2024 年起不再即时获得 SmartScreen 信誉**，新发布仍可能提示，持续用同一身份签名积累信誉；上 Microsoft Store 则由 Store 重签，最省事。
 - **Windows 10 生命周期**：Win10 已于 2025-10-14 结束支持，消费级 ESU 到 2027-10-12。v1 可以支持 Win10 22H2，但官网要写明“建议 Win11”；测试矩阵保留 Win10 22H2，不作为长期主战场。
 
 **启动优化**：MSIX 用 framework-dependent Windows App SDK 减体积；核心用 onedir、懒加载模型；第二次转换复用常驻 worker；不要在 UI 线程做解码/OCR。
@@ -125,7 +125,7 @@ core\fonts\...                 # Noto/Source Han
 
 ## 3. Linux：只做 CLI
 
-**目标**：`caption-svg` 单命令，输入图片，输出 SVG/scene JSON；无 GUI、无服务、无 root。
+**目标**：`distill-svg` 单命令，输入图片，输出 SVG/scene JSON；无 GUI、无服务、无 root。
 
 **打包**
 
@@ -143,16 +143,16 @@ core\fonts\...                 # Noto/Source Han
 
 ### 4.1 核心边界
 
-把 `caption_svg` 从“CLI 脚本集合”整理成**库 + 薄 CLI**：
+把 `distill_svg` 从“CLI 脚本集合”整理成**库 + 薄 CLI**：
 
 ```
-caption_svg/
+distill_svg/
   api.py        # convert(Request) -> Result；不 import argparse
   pipeline.py   # prepare → ocr → text → panels → images → svg
   ocr.py        # 只做适配器，不决定 UI
   svg.py        # 纯序列化
   privacy.py    # 敏感扫描/元数据策略
-caption_core/   # 进程入口：解析 NDJSON，调 api.convert
+distill_core/   # 进程入口：解析 NDJSON，调 api.convert
 ```
 
 `api.convert` 的输入输出都是可序列化 dataclass/dict；CLI、GUI、测试都走它。这样未来换 Rust 也可以先替换实现，不动壳。
@@ -206,7 +206,7 @@ caption_core/   # 进程入口：解析 NDJSON，调 api.convert
 - 输出先写同目录临时文件，`fsync` 后原子 rename；默认 0600，用户显式导出再放宽。
 - 解析真实路径，拒绝符号链接穿越；不 `shell=True`；参数用数组。
 - 壳退出时发 `shutdown`，再杀进程组；Windows 用 Job Object，macOS/Linux 用 process group；避免 PyInstaller bootloader 孤儿进程。
-- 核心无状态；每次请求带完整 options；不要依赖全局环境变量（`CAPTION_SVG_FONT_DIRS` 这类要改成显式参数）。
+- 核心无状态；每次请求带完整 options；不要依赖全局环境变量（`DISTILL_SVG_FONT_DIRS` 这类要改成显式参数）。
 
 ---
 

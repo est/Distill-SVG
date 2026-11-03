@@ -1,4 +1,4 @@
-// Local OCR helper for caption-svg (macOS only).
+// Local OCR helper for distill-svg (macOS only).
 //
 // Usage: vision_ocr <image> [zh-Hans,en-US]
 // Output: JSON array of {text, confidence, x, y, w, h} in image pixels.

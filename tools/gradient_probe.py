@@ -1,4 +1,4 @@
-"""Synthetic probe for :mod:`caption_svg.gradients`.
+"""Synthetic probe for :mod:`distill_svg.gradients`.
 
 Run from anywhere::
 
@@ -19,7 +19,7 @@ import numpy as np
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from caption_svg.gradients import detect_gradient, to_svg_defs  # noqa: E402
+from distill_svg.gradients import detect_gradient, to_svg_defs  # noqa: E402
 
 
 def _bgr(rgb: np.ndarray) -> np.ndarray:
@@ -73,7 +73,7 @@ def text_region(w: int = 260, h: int = 120) -> np.ndarray:
     for y in range(14, h - 10, 22):
         cv2.putText(
             rgb,
-            "Caption text 0123",
+            "Sample text 0123",
             (10, y),
             cv2.FONT_HERSHEY_SIMPLEX,
             0.55,

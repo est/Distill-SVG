@@ -3,9 +3,9 @@ requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "caption-svg"
+name = "distill-svg"
 version = "0.2.0"
-description = "Reconstruct a GUI screenshot as a flat-color or wireframe SVG"
+description = "Distill a GUI screenshot into a flat-color or wireframe SVG"
 requires-python = ">=3.10"
 dependencies = [
   "numpy>=1.26",
@@ -17,7 +17,7 @@ dependencies = [
 ocr = ["rapidocr_onnxruntime>=1.3"]
 
 [project.scripts]
-caption-svg = "caption_svg.cli:main"
+distill-svg = "distill_svg.cli:main"
 
 [tool.setuptools.packages.find]
-include = ["caption_svg*"]
+include = ["distill_svg*"]

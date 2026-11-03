@@ -1,6 +1,6 @@
-# 图标库匹配（Icon Library Matching）调研与设计
+# 蒸矢 / distill-svg：图标库匹配（Icon Library Matching）调研与设计
 
-> 目标：给 `caption-svg` 增加“8–40px UI 小图标吸附到开源图标库”的能力：识别成可编辑 `<path>`，低置信度回退现有 `_vectorize_icon()` 描摹。
+> 目标：给 `distill-svg` 增加“8–40px UI 小图标吸附到开源图标库”的能力：识别成可编辑 `<path>`，低置信度回退现有 `_vectorize_icon()` 描摹。
 > 证据口径：优先官方 repo、文档、LICENSE、模型卡；检索 2026-11-03。**非法律意见**，发布前按实际条款复核。
 > 代码现状：`images.py` 用 Lab k-means + `approxPolyDP` 描摹；`IconPath` 只有 `d/fill/points`，`svg.py` 只输出 `<path fill>`。本文只做设计，不改代码。
 
@@ -195,7 +195,7 @@ class IconPath:
 ### 4.1 索引结构
 
 ```
-caption_svg/data/icons/
+distill_svg/data/icons/
   icons.json      # id/lib/name/aliases/viewBox/d/style/stroke_width/tags/license/source_url
   icons.npz       # mask_16/24/32/48、hog、phash、aspect、fill_ratio
   THIRD_PARTY_NOTICES.md
@@ -293,7 +293,7 @@ caption_svg/data/icons/
 
 ### 6.2 模块 API
 
-新增 `caption_svg/iconmatch.py`，不把匹配塞进 `images.py`：
+新增 `distill_svg/iconmatch.py`，不把匹配塞进 `images.py`：
 
 ```python
 @dataclass(frozen=True)
@@ -337,7 +337,7 @@ class IconIndex:
 ### 6.5 最小落地顺序
 
 1. `tools/build_icon_index.py`：Lucide → `icons.json` + `icons.npz` + 许可元数据。
-2. `caption_svg/iconmatch.py`：HOG 召回 + 多尺寸 mask 精排（先不做语义）。
+2. `distill_svg/iconmatch.py`：HOG 召回 + 多尺寸 mask 精排（先不做语义）。
 3. 接 `images.py`/`svg.py`/`cli.py`：`--icon-match=off` 默认，`auto` 可开；scene 增字段。
 4. 合成 benchmark（先 200 张），标定阈值；把“有害错配/未知误吸附”作为门禁。
 5. 达标后加 Tabler/Material、语义重排，再把默认切 `auto`。

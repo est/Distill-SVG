@@ -20,7 +20,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-from caption_svg.ocr import clean_ocr_lines, ocr_image  # noqa: E402
+from distill_svg.ocr import clean_ocr_lines, ocr_image  # noqa: E402
 
 
 def match(original, rendered):

@@ -1,6 +1,6 @@
 """Command-line entry point.
 
-    python -m caption_svg tests/1.png -o out/1.svg
+    python -m distill_svg tests/1.png -o out/1.svg
 
 The intermediate scene JSON (--scene) is useful for debugging and for a
 future manual-correction UI: OCR mistakes can be fixed without re-running CV.
@@ -29,7 +29,7 @@ from .svg import build_svg, write_svg
 
 def parse_args(argv=None):
     p = argparse.ArgumentParser(description="Reconstruct a screenshot as a flat-colour or wireframe SVG.")
-    p.add_argument("--version", action="version", version="caption-svg 0.2.0")
+    p.add_argument("--version", action="version", version="distill-svg 0.2.0")
     p.add_argument("input", help="screenshot (png/jpg)")
     p.add_argument("-o", "--output", help="output .svg (default: alongside input)")
     p.add_argument("--scene", help="also write the intermediate scene JSON")
@@ -87,7 +87,7 @@ def main(argv=None) -> int:
     if args.font_dir:
         import os
 
-        os.environ["CAPTION_SVG_FONT_DIRS"] = os.pathsep.join(args.font_dir)
+        os.environ["DISTILL_SVG_FONT_DIRS"] = os.pathsep.join(args.font_dir)
 
     timings = {}
     t0 = time.perf_counter()

@@ -217,7 +217,7 @@ __marimo__/
 # Streamlit
 .streamlit/secrets.toml
 
-# caption-svg local-only test assets and generated output
+# distill-svg local-only test assets and generated output
 tests/
 out/
 assets/fonts/

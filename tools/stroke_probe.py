@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Synthetic probe for :mod:`caption_svg.strokes`.
+"""Synthetic probe for :mod:`distill_svg.strokes`.
 
 Run from the repository root::
 
@@ -25,8 +25,8 @@ import numpy as np
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from caption_svg.panels import Panel  # noqa: E402
-from caption_svg.strokes import Stroke, detect_strokes  # noqa: E402
+from distill_svg.panels import Panel  # noqa: E402
+from distill_svg.strokes import Stroke, detect_strokes  # noqa: E402
 
 CARD = (40, 30, 400, 270, 14)  # x0, y0, x1, y1, radius
 TEXT_BOX = (56.0, 56.0, 148.0, 52.0)  # x, y, w, h
@@ -154,7 +154,7 @@ def main() -> int:
     if footer_false:
         print(f"  footer false positives: {len(footer_false)}")
 
-    out_path = Path(tempfile.gettempdir()) / "caption_svg_stroke_probe.png"
+    out_path = Path(tempfile.gettempdir()) / "distill_svg_stroke_probe.png"
     cv2.imwrite(str(out_path), image)
     print(f"probe image: {out_path}")
 

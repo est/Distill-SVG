@@ -1,10 +1,10 @@
-# 截图 → SVG：调研、算法与项目设计
+# 蒸矢 / distill-svg：截图 → SVG 调研、算法与项目设计
 
 > 目标：把 GUI 截图重构成一个**不含整张原始位图**的 SVG：纯色块/线框、可复制文本、少量矢量图标；照片/头像可按开关嵌入裁剪。
 > 允许纯色，不处理渐变/阴影/毛玻璃；但画布尺寸、面板位置、文字基线要尽量准。
 >
 > 本文基于仓库里的两张本地测试图（`tests/1.png`、`tests/2.jpg`，已加入
-> `.gitignore`，不进入 git）和当前 `caption_svg` 原型写成。
+> `.gitignore`，不进入 git）和当前 `distill_svg` 原型写成。
 
 ---
 
@@ -166,7 +166,7 @@
                          render → re-OCR → metrics
 ```
 
-### 4.1 预处理（`caption_svg/flatten.py`）
+### 4.1 预处理（`distill_svg/flatten.py`）
 
 - **条件中值滤波**：3×3 中值只在局部极差 ≤10 时替换。这样能抹掉抖动，又不会
   把 1px 文字笔画/图标线条一起抹掉。
@@ -175,7 +175,7 @@
 - 注意 `255` 四舍五入到偶数会变成 `256`，必须 `clip(0,255)`（原型踩过这个坑，
   生成了非法颜色 `#fcfe100`，浏览器把它当黑色）。
 
-### 4.2 面板/气泡/卡片（`caption_svg/panels.py`）
+### 4.2 面板/气泡/卡片（`distill_svg/panels.py`）
 
 思路：同一调色板颜色的连通域，通常就是一个面板。文字/图标会在面板里打洞，所以：
 
@@ -187,7 +187,7 @@
 - 用几何近似去重（抗锯齿会产生同位置、不同颜色的多个簇）；
 - 面积大的先画，小的后画（z-order）。
 
-细线/分隔线/卡片边框由 `caption_svg/strokes.py` 补充：用局部背景对比 + 方向形态学
+细线/分隔线/卡片边框由 `distill_svg/strokes.py` 补充：用局部背景对比 + 方向形态学
 提取 1–2px 线，过滤文字/照片区域，合并共线段；`--strokes auto` 只保留长分隔线/边框，
 `all` 才包含下划线和进度条。单张 1080×2306 约 50ms。
 
@@ -197,7 +197,7 @@
 - 同色嵌套面板：会被去重掉（视觉上不可见，通常没问题）；
 - 小圆钮/胶囊：面积阈值和角半径估计会略保守，原型里偶尔漏掉。
 
-### 4.3 文字：OCR 只是“候选”，几何要从像素反推（`caption_svg/fonts.py`）
+### 4.3 文字：OCR 只是“候选”，几何要从像素反推（`distill_svg/fonts.py`）
 
 对每一行 OCR：
 
@@ -248,7 +248,7 @@
 - **平台差异**：iOS PingFang SC，Android Noto Sans CJK/Roboto，Windows 微软雅黑，
   很多 App 还会自带字体。字体识别只能“候选匹配”，不能保证 100%。
 
-### 4.5 照片、头像、图标、emoji（`caption_svg/images.py`）
+### 4.5 照片、头像、图标、emoji（`distill_svg/images.py`）
 
 用“残差”找内容：
 
@@ -294,7 +294,7 @@ emoji 目前就是“彩色小图标”，同样走描摹；识别成 Unicode �
 - 裁剪框是启发式的：party hat、徽章、阴影可能让框略紧或略松；后续可以用面板/圆角
   检测或用户拖框修正。
 
-### 4.6 SVG 序列化（`caption_svg/svg.py`）
+### 4.6 SVG 序列化（`distill_svg/svg.py`）
 
 ```xml
 <svg width="1080" height="2306" viewBox="0 0 1080 2306">
@@ -536,13 +536,13 @@ emoji 目前就是“彩色小图标”，同样走描摹；识别成 Unicode �
 ```bash
 python3 -m pip install -r requirements.txt
 ./tools/fetch_fonts.sh                 # 可选，Noto Sans SC 400/500/600/700
-python3 -m caption_svg tests/2.jpg -o out/2.svg --scene out/2.json
-python3 -m caption_svg tests/1.png -o out/1.svg --scene out/1.json --debug
-python3 -m caption_svg tests/2.jpg -o out/2-quick.svg --quick
-python3 -m caption_svg tests/1.png -o out/1-wire.svg --style wireframe --photos outline --fast
+python3 -m distill_svg tests/2.jpg -o out/2.svg --scene out/2.json
+python3 -m distill_svg tests/1.png -o out/1.svg --scene out/1.json --debug
+python3 -m distill_svg tests/2.jpg -o out/2-quick.svg --quick
+python3 -m distill_svg tests/1.png -o out/1-wire.svg --style wireframe --photos outline --fast
 python3 tools/gradient_probe.py
 python3 tools/stroke_probe.py
-python3 -m caption_svg tests/2.jpg -o out/2-private.svg --photos placeholder
+python3 -m distill_svg tests/2.jpg -o out/2-private.svg --photos placeholder
 python3 -m pip install rapidocr_onnxruntime   # optional cross-platform / hybrid OCR
 ```
 
@@ -581,7 +581,7 @@ python3 tools/compare.py tests/2.jpg /tmp/render2.png /tmp/cmp
 | 文本保持 SVG text | 已实现 | 保持 |
 | 2x/3x 截图、去噪、posterize | 已实现（去抖 + 调色板 + 2x 分析） | 保持 |
 | 圆角/描边/分隔线结构 | 面板 + `strokes.py`（默认 auto，只保留长分隔线/边框） | 已接入，低置信度丢弃 |
-| 渐变用 SVG stops 或 raster patch | 原型 `caption_svg/gradients.py` 已通过合成测试；`tests/2.jpg` 的浅色背景 tile 也有 7 个高置信命中 | 未接入：渐变背景会破坏调色板面板分割，需要 gradient-aware segmentation 后再开 CLI |
+| 渐变用 SVG stops 或 raster patch | 原型 `distill_svg/gradients.py` 已通过合成测试；`tests/2.jpg` 的浅色背景 tile 也有 7 个高置信命中 | 未接入：渐变背景会破坏调色板面板分割，需要 gradient-aware segmentation 后再开 CLI |
 | 图标库吸附 | 当前局部描摹 | 研究可行性，低置信度回退描摹 |
 | 阴影/毛玻璃保留 raster patch | 未做 | 可选，未来 |
 | 视觉 diff / side-by-side | 已加 `tools/compare.py` | 保持 |

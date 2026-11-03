@@ -19,7 +19,7 @@ Candidates inside text/photo masks or duplicating a flat panel fill are
 discarded.
 
 Coordinates returned by :func:`detect_strokes` are in the pixel space of the
-supplied image (for a :class:`~caption_svg.flatten.Prepared` this is
+supplied image (for a :class:`~distill_svg.flatten.Prepared` this is
 ``prep.original``, i.e. the full screenshot).
 """
 
@@ -334,9 +334,9 @@ def detect_strokes(
     """Find thin horizontal/vertical strokes missed by flat-panel extraction.
 
     Args:
-        prep_or_image: A :class:`~caption_svg.flatten.Prepared` (detection runs
+        prep_or_image: A :class:`~distill_svg.flatten.Prepared` (detection runs
             on ``prep.original``), an HxW/HxWx3/HxWx4 array, or an image path.
-        panels: Panels from :func:`caption_svg.panels.detect_panels`.  Used to
+        panels: Panels from :func:`distill_svg.panels.detect_panels`.  Used to
             label edge strokes as ``border`` and drop strokes that duplicate a
             flat fill boundary.  Coordinates must match the image.
         text_boxes: Optional OCR boxes ``(x, y, w, h)``.  Strokes mostly inside

@@ -66,7 +66,7 @@ class TextItem:
 
 def _font_dirs() -> list[Path]:
     dirs = []
-    env = os.environ.get("CAPTION_SVG_FONT_DIRS")
+    env = os.environ.get("DISTILL_SVG_FONT_DIRS")
     if env:
         dirs.extend(Path(p) for p in env.split(os.pathsep) if p)
     root = Path(__file__).resolve().parent.parent
@@ -103,7 +103,7 @@ def default_candidates() -> list[FontCandidate]:
             FontCandidate("PingFang SC", 600, ping, 11),
         ]
 
-    # Open-source CJK fonts: put them in assets/fonts or CAPTION_SVG_FONT_DIRS.
+    # Open-source CJK fonts: put them in assets/fonts or DISTILL_SVG_FONT_DIRS.
     for d in _font_dirs():
         for path in sorted(list(d.glob("*NotoSans*SC*.ttf")) + list(d.glob("*NotoSans*SC*.otf"))):
             name = path.stem.lower()
