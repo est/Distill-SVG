@@ -1,0 +1,3 @@
+# Optional cross-platform OCR backend (also enables hybrid OCR on macOS).
+# RapidOCR bundles small ONNX models and runs fully offline.
+rapidocr_onnxruntime>=1.3

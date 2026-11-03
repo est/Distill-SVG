@@ -216,3 +216,11 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# caption-svg local-only test assets and generated output
+tests/
+out/
+assets/fonts/
+tools/.build/
+.venv/
+.DS_Store

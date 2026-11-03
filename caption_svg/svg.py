@@ -1,0 +1,200 @@
+"""SVG serialisation.
+
+Two output styles share the same scene graph:
+
+* ``flat``      — flat fills taken from the screenshot.
+* ``wireframe`` — white fills, grey outlines, monochrome text/icons.
+
+Text is always emitted as ``<text>`` so it remains selectable/copyable.
+Photos are emitted as data-URI ``<image>`` crops when ``photos=embed``;
+otherwise they become placeholders or outlines.
+"""
+
+from __future__ import annotations
+
+from html import escape
+from pathlib import Path
+
+from .fonts import TextItem
+from .images import ImageBlock, IconPath, placeholder_glyph
+from .panels import Panel
+from .strokes import Stroke
+
+FONT_STACK = {
+    "PingFang SC": '"PingFang SC","Noto Sans SC","Source Han Sans SC","Microsoft YaHei",sans-serif',
+    "Noto Sans SC": '"Noto Sans SC","PingFang SC","Source Han Sans SC","Microsoft YaHei",sans-serif',
+    "Source Han Sans SC": '"Source Han Sans SC","Noto Sans SC","PingFang SC","Microsoft YaHei",sans-serif',
+    "Microsoft YaHei": '"Microsoft YaHei","PingFang SC","Noto Sans SC",sans-serif',
+    "Noto Sans CJK SC": '"Noto Sans CJK SC","Noto Sans SC","PingFang SC",sans-serif',
+}
+
+WIREFRAME_PANEL = "#ffffff"
+WIREFRAME_STROKE = "#c2c9d3"
+WIREFRAME_ICON = "#566170"
+WIREFRAME_TEXT = "#111827"
+WIREFRAME_TEXT_MUTED = "#4b5563"
+
+
+def _rgba_fill(fill: str, alpha: float) -> str:
+    return f'fill="{fill}" fill-opacity="{alpha:.2f}"'
+
+
+def _luminance(hex_fill: str) -> float:
+    r = int(hex_fill[1:3], 16) / 255.0
+    g = int(hex_fill[3:5], 16) / 255.0
+    b = int(hex_fill[5:7], 16) / 255.0
+    return 0.2126 * r + 0.7152 * g + 0.0722 * b
+
+
+def _text_fill(fill: str, wireframe: bool) -> str:
+    if not wireframe:
+        return fill
+    return WIREFRAME_TEXT if _luminance(fill) < 0.55 else WIREFRAME_TEXT_MUTED
+
+
+def build_svg(
+    width: int,
+    height: int,
+    background: str,
+    panels: list[Panel],
+    images: list[ImageBlock],
+    icons: list[IconPath],
+    texts: list[TextItem],
+    family: str,
+    strokes: list[Stroke] | None = None,
+    style: str = "flat",
+    photo_mode: str = "embed",
+    title: str = "Reconstructed screenshot",
+) -> str:
+    wireframe = style == "wireframe"
+    page_bg = "#ffffff" if wireframe else background
+    stack = FONT_STACK.get(family, f'"{family}",sans-serif')
+    out: list[str] = [
+        '<?xml version="1.0" encoding="UTF-8"?>',
+        f'<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{height}" '
+        f'viewBox="0 0 {width} {height}" xml:space="preserve" '
+        f'shape-rendering="geometricPrecision" text-rendering="geometricPrecision">',
+        f"<title>{escape(title)}</title>",
+        "<desc>Semantic SVG reconstruction of a screenshot. "
+        "Text is selectable. Photo/avatar crops may be embedded as image data URIs.</desc>",
+    ]
+
+    # Clip paths for rounded embedded images.
+    defs: list[str] = []
+    for idx, im in enumerate(images):
+        if im.embedded and im.data_uri:
+            x, y, w, h = im.render_box()
+            rx = f' rx="{im.rx:.1f}"' if im.rx > 0.2 else ""
+            defs.append(
+                f'<clipPath id="piclip{idx}" clipPathUnits="userSpaceOnUse">'
+                f'<rect x="{x:.1f}" y="{y:.1f}" width="{w:.1f}" height="{h:.1f}"{rx}/>'
+                f"</clipPath>"
+            )
+    if defs:
+        out.append("<defs>" + "".join(defs) + "</defs>")
+
+    out.append(f'<rect x="0" y="0" width="{width}" height="{height}" fill="{page_bg}"/>')
+
+    if panels:
+        out.append('<g id="panels">')
+        for idx, p in enumerate(panels):
+            rx = "" if p.rx <= 0.2 else f' rx="{p.rx:.1f}"'
+            fill = p.fill
+            if wireframe:
+                out.append(
+                    f'<rect x="{p.x:.1f}" y="{p.y:.1f}" width="{p.w:.1f}" height="{p.h:.1f}"'
+                    f'{rx} fill="{WIREFRAME_PANEL}" stroke="{WIREFRAME_STROKE}" stroke-width="1"/>'
+                )
+            else:
+                out.append(
+                    f'<rect x="{p.x:.1f}" y="{p.y:.1f}" width="{p.w:.1f}" height="{p.h:.1f}"'
+                    f'{rx} fill="{fill}"/>'
+                )
+        out.append("</g>")
+
+    if strokes:
+        out.append('<g id="strokes">')
+        for s in strokes:
+            color = WIREFRAME_STROKE if wireframe else s.color
+            out.append(
+                f'<line x1="{s.x1:.1f}" y1="{s.y1:.1f}" x2="{s.x2:.1f}" y2="{s.y2:.1f}" '
+                f'stroke="{color}" stroke-width="{max(1.0, s.width):.1f}" '
+                f'stroke-linecap="butt"/>'
+            )
+        out.append("</g>")
+
+    if images:
+        out.append('<g id="images">')
+        for idx, im in enumerate(images):
+            x, y, w, h = im.render_box()
+            rx = f' rx="{im.rx:.1f}"' if im.rx > 0.2 else ""
+            if im.embedded and im.data_uri:
+                out.append(
+                    f'<image x="{x:.1f}" y="{y:.1f}" width="{w:.1f}" height="{h:.1f}" '
+                    f'href="{im.data_uri}" preserveAspectRatio="none" '
+                    f'clip-path="url(#piclip{idx})"/>'
+                )
+                stroke = WIREFRAME_STROKE if wireframe else "#000000"
+                opacity = 1.0 if wireframe else 0.10
+                out.append(
+                    f'<rect x="{x:.1f}" y="{y:.1f}" width="{w:.1f}" height="{h:.1f}"{rx} '
+                    f'fill="none" stroke="{stroke}" stroke-opacity="{opacity:.2f}" stroke-width="1"/>'
+                )
+                continue
+
+            if photo_mode == "outline":
+                out.append(
+                    f'<rect x="{x:.1f}" y="{y:.1f}" width="{w:.1f}" height="{h:.1f}"{rx} '
+                    f'fill="none" stroke="{WIREFRAME_STROKE}" stroke-width="1"/>'
+                )
+                continue
+
+            # Placeholder mode: neutral block + glyph.
+            fill = "#ffffff" if wireframe else im.fill
+            stroke = WIREFRAME_STROKE if wireframe else "#000000"
+            stroke_opacity = 1.0 if wireframe else 0.10
+            out.append(
+                f'<rect x="{x:.1f}" y="{y:.1f}" width="{w:.1f}" height="{h:.1f}"{rx} '
+                f'fill="{fill}" stroke="{stroke}" '
+                f'stroke-opacity="{stroke_opacity:.2f}" stroke-width="1"/>'
+            )
+            lum = _luminance(fill)
+            glyph_fill = "#ffffff" if lum < 0.55 else "#000000"
+            alpha = 0.50 if lum < 0.55 else 0.20
+            if wireframe:
+                glyph_fill, alpha = WIREFRAME_STROKE, 1.0
+            glyph = placeholder_glyph(im.kind, x, y, w, h, "currentColor")
+            glyph = glyph.replace(
+                'fill="currentColor"',
+                f'fill="{glyph_fill}" fill-opacity="{alpha:.2f}"',
+            )
+            out.append(f'<g {_rgba_fill(glyph_fill, alpha)}>{glyph}</g>')
+        out.append("</g>")
+
+    if icons:
+        out.append('<g id="icons">')
+        for icon in icons:
+            fill = WIREFRAME_ICON if wireframe else icon.fill
+            out.append(f'<path d="{icon.d}" fill="{fill}" fill-rule="evenodd"/>')
+        out.append("</g>")
+
+    if texts:
+        out.append(
+            f'<g id="text" font-family=\'{escape(stack, quote=True)}\' '
+            f'style="user-select:text" data-role="text">'
+        )
+        for t in texts:
+            weight = f' font-weight="{t.weight}"' if t.weight != 400 else ""
+            fill = _text_fill(t.fill, wireframe)
+            out.append(
+                f'<text x="{t.x:.2f}" y="{t.baseline:.2f}" font-size="{t.size:.2f}"'
+                f'{weight} fill="{fill}">{escape(t.text)}</text>'
+            )
+        out.append("</g>")
+
+    out.append("</svg>")
+    return "\n".join(out) + "\n"
+
+
+def write_svg(path: str | Path, svg: str) -> None:
+    Path(path).write_text(svg, encoding="utf-8")
