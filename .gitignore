@@ -224,3 +224,6 @@ assets/fonts/
 tools/.build/
 .venv/
 .DS_Store
+
+# generated macOS app icon
+mac/AppIcon.icns

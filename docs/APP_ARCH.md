@@ -1,6 +1,6 @@
 # 蒸矢 / distill-svg 原生应用架构（v1 设计）
 
-> 状态：架构建议，不是已实现代码。基于当前仓库 `distill_svg` 的实际能力（flat/wireframe 两种输出、`embed/placeholder/outline` 三种照片策略、Apple Vision 与 RapidOCR 适配器、scene JSON、`<text>` 可复制文本），以及 2026-11 的官方文档。
+> 状态：架构建议；v1 macOS SwiftUI 壳已在 `mac/` 实现（未签名测试版），Windows/Linux 仍未实现。基于当前仓库 `distill_svg` 的实际能力（flat/wireframe 两种输出、`embed/placeholder/outline` 三种照片策略、Apple Vision 与 RapidOCR 适配器、scene JSON、`<text>` 可复制文本），以及 2026-11 的官方文档。
 >
 > 目标：本地/离线、隐私优先；先把管线做稳，再发可分发二进制；macOS 与 Windows 10 原生应用，Linux 只做 CLI，移动端后置。
 >
@@ -64,6 +64,9 @@
 ## 2. 平台具体建议
 
 ### 2.1 macOS：SwiftUI + Vision，先直接分发
+
+> 已实现 v1 壳：`mac/`（SwiftUI + 进程内 Vision OCR + PyInstaller onedir 核心）。
+> 构建：`./mac/build_app.sh`；细节与体积/签名说明见 `mac/README.md`。
 
 **推荐结构**
 

@@ -90,6 +90,50 @@ Useful options:
 | `--scene out.json` | editable intermediate scene graph |
 | `--debug` | panel/image/baseline overlay |
 
+## macOS app (preview)
+
+A SwiftUI shell lives in [`mac/`](mac/README.md). It drags-and-drops
+screenshots, calls the same Python pipeline through a bundled `distill-core`
+worker, runs Vision OCR in-process and previews the SVG in `WKWebView`.
+
+### Build from source
+
+Requirements: macOS 13+, Xcode Command Line Tools (`swiftc`), and a Python
+3.10+ environment with this project's dependencies.
+
+```bash
+cd distill-svg
+
+python3 -m pip install -r requirements.txt pyinstaller
+
+./mac/build_app.sh
+open dist/DistillSVG.app
+```
+
+The script freezes the Python core with PyInstaller (onedir), compiles the
+SwiftUI shell for the host architecture, strips the shared libraries, ad-hoc
+signs every Mach-O file and writes both `dist/DistillSVG.app` and
+`dist/DistillSVG-<version>-<arch>.dmg`.
+
+Useful build switches:
+
+| switch | effect |
+| --- | --- |
+| `SKIP_CORE=1 ./mac/build_app.sh` | reuse the existing frozen core (fast UI iteration) |
+| `STRIP=0 ./mac/build_app.sh` | skip `strip -x` (larger app) |
+| `PYTHON=/path/to/python ./mac/build_app.sh` | choose the Python used for the bundle |
+
+The first build takes roughly 1–2 minutes and needs ~400 MB of temporary disk
+space. Build artifacts (`build/`, `dist/`, `mac/AppIcon.icns`) and local test
+screenshots (`tests/`, `out/`) are git-ignored; the app icon is generated from
+`mac/make_icon.py` when missing.
+
+The build is arm64 (when built on Apple Silicon) and **ad-hoc signed, not
+notarized**; recipients must right-click → Open once. The bundle is
+self-contained (no Python required): ~138 MB app / ~66 MB DMG. See
+[`mac/README.md`](mac/README.md) for the architecture, option mapping,
+signing/notarization and size breakdown.
+
 ## Output
 
 The SVG contains:
@@ -146,11 +190,12 @@ python3 tools/compare.py tests/2.jpg /tmp/render2.png /tmp/cmp
 
 ## Local / offline
 
-The current local entry point is the CLI: no network, no telemetry, OCR and
-models on-device. Native macOS (SwiftUI) and Windows (WinUI 3) shells are
-designed in [`docs/APP_ARCH.md`](docs/APP_ARCH.md); Linux stays CLI-only.
-The shared core communicates through the scene JSON / CLI contract, so native
-shells can wrap it without reimplementing the CV pipeline.
+Both the CLI and the macOS app are local: no network, no telemetry, OCR and
+models on-device. The macOS SwiftUI shell is implemented in [`mac/`](mac/README.md);
+Windows (WinUI 3) remains a design in [`docs/APP_ARCH.md`](docs/APP_ARCH.md);
+Linux stays CLI-only. The shared core communicates through the scene JSON /
+CLI contract and an NDJSON worker, so native shells do not reimplement the CV
+pipeline.
 
 ## Documentation
 
