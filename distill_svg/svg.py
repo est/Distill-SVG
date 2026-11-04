@@ -82,12 +82,11 @@ def build_svg(
     # Clip paths for rounded embedded images.
     defs: list[str] = []
     for idx, im in enumerate(images):
-        if im.embedded and im.data_uri:
+        if im.embedded and im.data_uri and im.rx > 0.2:
             x, y, w, h = im.render_box()
-            rx = f' rx="{im.rx:.1f}"' if im.rx > 0.2 else ""
             defs.append(
                 f'<clipPath id="piclip{idx}" clipPathUnits="userSpaceOnUse">'
-                f'<rect x="{x:.1f}" y="{y:.1f}" width="{w:.1f}" height="{h:.1f}"{rx}/>'
+                f'<rect x="{x:.1f}" y="{y:.1f}" width="{w:.1f}" height="{h:.1f}" rx="{im.rx:.1f}"/>'
                 f"</clipPath>"
             )
     if defs:
@@ -129,17 +128,23 @@ def build_svg(
             x, y, w, h = im.render_box()
             rx = f' rx="{im.rx:.1f}"' if im.rx > 0.2 else ""
             if im.embedded and im.data_uri:
+                clip = f' clip-path="url(#piclip{idx})"' if im.rx > 0.2 else ""
                 out.append(
                     f'<image x="{x:.1f}" y="{y:.1f}" width="{w:.1f}" height="{h:.1f}" '
-                    f'href="{im.data_uri}" preserveAspectRatio="none" '
-                    f'clip-path="url(#piclip{idx})"/>'
+                    f'href="{im.data_uri}" preserveAspectRatio="none"{clip}/>'
                 )
-                stroke = WIREFRAME_STROKE if wireframe else "#000000"
-                opacity = 1.0 if wireframe else 0.10
-                out.append(
-                    f'<rect x="{x:.1f}" y="{y:.1f}" width="{w:.1f}" height="{h:.1f}"{rx} '
-                    f'fill="none" stroke="{stroke}" stroke-opacity="{opacity:.2f}" stroke-width="1"/>'
-                )
+                if im.kind != "icon":
+                    stroke = WIREFRAME_STROKE if wireframe else "#000000"
+                    opacity = 1.0 if wireframe else 0.10
+                    out.append(
+                        f'<rect x="{x:.1f}" y="{y:.1f}" width="{w:.1f}" height="{h:.1f}"{rx} '
+                        f'fill="none" stroke="{stroke}" stroke-opacity="{opacity:.2f}" stroke-width="1"/>'
+                    )
+                continue
+
+            if im.kind == "icon":
+                # Icon images are always embedded; never draw a placeholder
+                # picture glyph on top of a failed crop.
                 continue
 
             if photo_mode == "outline":

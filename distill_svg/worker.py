@@ -64,6 +64,7 @@ class Worker:
                     "ocr": ["supplied"],  # the macOS shell performs Vision OCR
                     "styles": ["flat", "wireframe"],
                     "photos": ["embed", "placeholder", "outline"],
+                    "icon_modes": ["auto", "vector", "embed"],
                 },
             }
         )

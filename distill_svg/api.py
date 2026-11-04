@@ -58,6 +58,7 @@ class ConvertOptions:
     fast: bool = False
     quick: bool = False
     icons: bool = False
+    icon_mode: str = "auto"
     no_icons: bool = False
     no_images: bool = False
     keep_photo_text: bool = False
@@ -118,6 +119,9 @@ def convert(
         opts.style = "wireframe"
         opts.fast = True
         opts.photos = "placeholder"
+        # The quick preset promises the smallest/fastest output; never add
+        # raster icon crops to it.
+        opts.icon_mode = "vector"
 
     src = Path(opts.input)
     if not src.exists():
@@ -131,6 +135,20 @@ def convert(
 
     log: list[str] = []
     timings: dict[str, float] = {}
+
+    icon_mode = (opts.icon_mode or "auto").lower()
+    if icon_mode not in ("auto", "vector", "embed"):
+        icon_mode = "vector"
+    if icon_mode == "auto":
+        # The default: fidelity-first flat colours, pure-vector wireframe.
+        icon_mode = "embed" if opts.style == "flat" else "vector"
+    if opts.no_icons:
+        icon_mode = "vector"
+    if icon_mode == "embed" and opts.photos in ("placeholder", "outline"):
+        # Placeholder/outline are the privacy modes.  Do not smuggle icon
+        # pixels in through the icon layer.
+        icon_mode = "vector"
+        log.append(f"icon-mode: embed disabled because photos={opts.photos}")
 
     # Let the GUI cancel before the expensive stages start.
     _cancelled(cancel)
@@ -207,13 +225,19 @@ def convert(
         photo_grayscale=opts.photo_grayscale or opts.style == "wireframe",
         photo_scrub=opts.photo_scrub,
         trace_icons=trace_icons,
+        icon_mode=icon_mode,
     )
     timings["images"] = time.perf_counter() - t0
     if opts.no_images:
-        images = []
+        # Keep icons: --no-images is about photos/avatars.  Use --no-icons to
+        # drop icon paths or embedded icon crops.
+        images = [im for im in images if im.kind == "icon"]
     if opts.no_icons:
+        images = [im for im in images if im.kind != "icon"]
         icons = []
-    embedded = sum(1 for im in images if im.embedded)
+    photo_images = [im for im in images if im.kind != "icon"]
+    icon_images = [im for im in images if im.kind == "icon"]
+    embedded = sum(1 for im in photo_images if im.embedded)
     # Do not paint OCR text on top of an embedded photo crop that already
     # contains the same glyphs: it doubles the headline/price and looks blurry.
     if embedded and not opts.keep_photo_text:
@@ -236,8 +260,11 @@ def convert(
                 kept.append(t)
         texts = kept
         if removed:
-            log.append(f"text: dropped {removed} lines already inside embedded photos")
-    log.append(f"images: {len(images)} ({embedded} embedded), icon paths: {len(icons)}")
+            log.append(f"text: dropped {removed} lines already inside embedded images")
+    log.append(
+        f"images: {len(photo_images)} ({embedded} embedded), "
+        f"icon paths: {len(icons)}, embedded icons: {len(icon_images)}"
+    )
     _cancelled(cancel)
 
     t0 = time.perf_counter()
@@ -303,7 +330,8 @@ def convert(
             "style": opts.style,
             "photos": opts.photos,
             "panels": [p.to_dict() for p in panels],
-            "images": [i.to_dict() for i in images],
+            "images": [i.to_dict() for i in photo_images],
+            "icon_images": [i.to_dict() for i in icon_images],
             "icons": [i.to_dict() for i in icons],
             "strokes": [s.to_dict() for s in strokes],
             "texts": [t.to_dict() for t in texts],
@@ -348,9 +376,11 @@ def convert(
         "stats": {
             "panels": len(panels),
             "texts": len(texts),
-            "images": len(images),
+            "images": len(photo_images),
             "embedded_photos": embedded,
-            "icons": len(icons),
+            "icons": len(icons) + len(icon_images),
+            "icon_paths": len(icons),
+            "embedded_icons": len(icon_images),
             "strokes": len(strokes),
             "svg_bytes": out.stat().st_size,
             "ocr_lines": len(lines),

@@ -65,7 +65,7 @@ DistillSVG.app/
 | 嵌入 / 占位 / 轮廓 | `--photos embed|placeholder|outline` |
 | 快速 / 完整 | `--fast` (on/off) |
 | 分隔线 | `--strokes off|auto|all` |
-| 描摹图标 | `--no-icons` |
+| 图标：自动 / 矢量化 / 抠图嵌入 / 不输出 | `--icon-mode auto\|vector\|embed`, `--icons`, `--no-icons` |
 | 照片灰度 / 去除低位像素 | `--photo-grayscale` / `--photo-scrub` |
 | 保留照片内文字 | `--keep-photo-text` |
 | 调色板 / 分析精度 | `--k` / `--scale` |
@@ -75,6 +75,28 @@ DistillSVG.app/
 The one intentional difference: the GUI always uses on-device Vision OCR, so
 there is no `--ocr-engine hybrid` control. If both engines are wanted, use the
 CLI.
+
+## Icon mode (flat vs wireframe)
+
+`--icon-mode auto` is the default:
+
+- **flat** → icons/emoji are cut out of the original screenshot with a
+  colour-distance alpha matte and embedded as PNG. Visually much closer than
+  tracing, especially for thin outline icons and emoji.
+- **wireframe** → vector tracing, preserving the line-art look.
+
+Measured on the local test images (flat, 24 and 16 icon components):
+
+| image | vector size | cutout size | icon-region SSIM | icon-region MAE |
+| --- | --- | --- | --- | --- |
+| `1.png` | 89 KiB | 57 KiB | 0.70 → 0.97 | 10.1 → 3.3 |
+| `2.jpg` | 127 KiB | 167 KiB | 0.72 → 0.98 | 16.9 → 1.5 |
+
+Use `--icon-mode vector` for pure-vector icons, or `--icon-mode embed` to force
+cutouts even in wireframe (`--photos embed` required). `--photos placeholder`
+or `outline` forces vector icons so the privacy modes never carry raster icon
+pixels. The extra PNG payload is large on emoji-heavy screenshots; that is the
+main trade-off.
 
 ## Distribution
 
@@ -114,5 +136,8 @@ it needs a custom build and CI, so it is not part of v1.
   would require universal Python/OpenCV wheels.
 - No batch queue and no scene-text editor yet. The scene JSON is exported so
   edits can be made externally.
+- Flat output embeds icon cutouts by default (`--icon-mode auto`); use
+  `--icon-mode vector` for pure-vector icons. Placeholder/outline photo modes
+  force vector icons so privacy mode never carries raster icon pixels.
 - Vision OCR quality is good but differs from CLI `--ocr-engine hybrid`.
 - Not sandboxed and not notarized; see Distribution.

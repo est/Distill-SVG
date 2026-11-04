@@ -3,8 +3,9 @@
 > 中文名：**蒸矢** —— 把截图蒸馏成可编辑的 SVG。
 
 Screenshot → **flat-color or wireframe SVG**. Panels become rectangles, text
-stays real selectable text, icons/emoji are traced, and photos/avatars are
-embedded as cropped images (or replaced with placeholders in privacy mode).
+stays real selectable text, icons/emoji are cut out or traced depending on
+style, and photos/avatars are embedded as cropped images (or replaced with
+placeholders in privacy mode).
 
 This is *semantic reconstruction*, not a bitmap trace: the output is a redrawn
 UI, not a compressed copy of the screenshot. Geometry, text and colours are
@@ -24,6 +25,10 @@ embedded on demand.
   - `--photos placeholder`: neutral block + glyph (privacy mode).
   - `--photos outline`: empty outlined box.
 - **Selectable text**: every line is a real `<text>` element, not a path.
+- **High-fidelity icon cutouts**: `--icon-mode auto` (the default) keeps
+  icons/emoji as alpha-masked PNGs for flat colours and traces vector paths
+  for wireframe. Force either with `--icon-mode embed|vector`; the cutouts are
+  closer to the screenshot but are no longer pure vector.
 - **Fast preview**: `--fast` skips font voting and icon tracing.
 - **Local/offline OCR**: Apple Vision on macOS; optional RapidOCR for
   Windows/Linux; `auto` fuses both when available (`hybrid`).
@@ -81,11 +86,12 @@ Useful options:
 | `--photo-scrub` | drop 2 LSBs per channel in embedded photos (anti-LSB-stego) |
 | `--keep-photo-text` | keep OCR lines inside embedded photos (may double-draw) |
 | `--strokes off\|auto\|all` | detect thin separators/borders (`auto` = long dividers/borders only) |
-| `--fast` | quick preview; no font voting/icon tracing |
+| `--fast` | quick preview; no font voting/icon tracing (embedded icons still apply) |
 | `--quick` | preset: wireframe + fast + placeholder (smallest/fastest) |
 | `--scale 2` | analysis downscale |
 | `--k 14` | palette size |
 | `--font-dir DIR` | extra `NotoSansSC*.ttf` / `SourceHanSans*` directory |
+| `--icon-mode auto\|vector\|embed` | icon handling: `auto` = cut out for flat, trace for wireframe (default) |
 | `--ocr-engine auto\|vision\|rapidocr\|hybrid` | OCR backend (`auto` = hybrid if both installed) |
 | `--scene out.json` | editable intermediate scene graph |
 | `--debug` | panel/image/baseline overlay |
@@ -142,7 +148,8 @@ The SVG contains:
 - `<text>` for all OCR text (selectable/copyable);
 - `<path>` for traced icons/emoji/logos;
 - `<line>` for detected separators/borders;
-- `<image href="data:...">` for embedded photo crops (when enabled).
+- `<image href="data:...">` for embedded photo crops (and, with
+  `--icon-mode embed`, alpha-masked icon crops).
 
 It never embeds the whole original screenshot, gradients, filters or external
 URLs. Embedded photo crops are small rasters, so the file size and privacy
@@ -162,7 +169,11 @@ Local test images (not committed):
 
 Full-quality run on `2.jpg` takes about 3–4 s on an M-series laptop; `--fast`
 takes roughly 1.5 s (and less if photos are placeholders). Most of the time is
-OCR + font matching + icon tracing + photo crop encoding.
+OCR + font matching + icon tracing/cutouts + photo crop encoding.
+
+> The flat-mode sizes above predate the icon-cutout default; current flat
+> output is about 57 KiB for `1.png` and 167 KiB for `2.jpg`, with wireframe
+> still using vector icons.
 
 Reproduce the text/layout check and the visual diff:
 
@@ -177,16 +188,20 @@ python3 tools/compare.py tests/2.jpg /tmp/render2.png /tmp/cmp
 - OCR errors are kept rather than guessed around (missing letters, digit/
   button-label confusions; hybrid OCR usually improves them). The scene JSON
   exists so a human/editor can fix them without re-running CV.
-- Icons are traced from low-resolution pixels; recognisable, not pixel-perfect.
+- Icons are either traced from low-resolution pixels (recognisable, not
+  pixel-perfect) or cut out with `--icon-mode embed` / the flat `auto` default.
+  Cutouts are visually closer but add raster content and are not pure vector.
 - Photos/avatars are cropped by a heuristic box; a party hat or badge may make
   the crop a little tight/loose.
-- Logos are usually traced as vectors rather than embedded.
+- Logos may be traced, embedded as photo crops, or cut out as icons depending
+  on their size and colour complexity.
 - Gradients are not reconstructed yet (prototype only); shadows/blur are approximated with flat fills/1px strokes.
 - Fonts differ across platforms. The SVG uses a font stack; outline/embedded
   font modes are future work.
-- **Privacy**: embedded photo crops retain the original pixels (including any
-  hidden pixel-level data). Use `--photos placeholder` if that matters, or
-  `--photo-scrub` to drop low bits while keeping the visual content.
+- **Privacy**: embedded photo crops and icon cutouts retain the original
+  pixels (including any hidden pixel-level data). Use `--photos placeholder`
+  or `outline` (these force vector icons) if that matters, or `--photo-scrub`
+  to drop low bits while keeping the visual content.
 
 ## Local / offline
 

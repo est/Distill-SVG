@@ -7,7 +7,10 @@ Two output policies are supported:
   carrying a small raster crop (and whatever pixel-level data it contained).
 * ``placeholder``: replace it with a neutral glyph.  This is the privacy mode.
 
-Everything else (icons, emoji, logo marks) is still traced into vector paths.
+Icons, emoji and logo marks are traced into vector paths by default.  The
+experimental ``icon_mode="embed"`` instead cuts the component out of the
+original pixels (with an alpha mask) and embeds it as a PNG data URI, which is
+visually closer to the source, but it can be larger and is still raster content.
 """
 
 from __future__ import annotations
@@ -133,6 +136,67 @@ def _embed_crop(
     return f"data:{mime};base64,{b64}"
 
 
+def _embed_icon_crop(
+    prep: Prepared,
+    cc: np.ndarray,
+    comp_id: int,
+    x: int,
+    y: int,
+    w: int,
+    h: int,
+    palette_bgr: np.ndarray,
+    grayscale: bool = False,
+    scrub: bool = False,
+) -> tuple[str, tuple[float, float, float, float]]:
+    """Cut an icon component out of the screenshot and encode it with alpha.
+
+    The connected component is only a *support* mask: it is a filled
+    local-variance blob, so using it directly would make the whole bounding
+    box opaque.  Alpha comes from the colour distance to the flat UI palette
+    instead, which keeps only the actual glyph/emoji pixels and leaves the
+    surrounding panel (including holes inside outline icons) transparent.
+    """
+    s = prep.scale
+    pad = 1
+    x0 = max(0, int(round(x * s)) - pad)
+    y0 = max(0, int(round(y * s)) - pad)
+    x1 = min(prep.width, int(round((x + w) * s)) + pad)
+    y1 = min(prep.height, int(round((y + h) * s)) + pad)
+    if x1 <= x0 or y1 <= y0:
+        return "", (0.0, 0.0, 0.0, 0.0)
+    crop = prep.original[y0:y1, x0:x1].copy()
+
+    # Support: the detection component, slightly dilated so antialiased
+    # edges are allowed into the alpha computation.
+    support = (cc[y:y + h, x:x + w] == comp_id).astype(np.uint8) * 255
+    support = cv2.dilate(support, np.ones((3, 3), np.uint8))
+    support = cv2.resize(support, (crop.shape[1], crop.shape[0]), interpolation=cv2.INTER_LINEAR)
+    support = support.astype(np.float32) / 255.0
+
+    # Alpha: distance from the nearest flat surface colour.  Pixels on the
+    # panel/background become transparent; glyph pixels stay opaque; the
+    # antialiased rim gets a soft value.
+    d = np.sqrt(
+        ((crop.astype(np.float32)[:, :, None, :] - palette_bgr[None, None, :, :]) ** 2).sum(axis=3)
+    ).min(axis=2)
+    alpha = np.clip((d - 4.0) / 16.0, 0.0, 1.0) * support
+    alpha = cv2.GaussianBlur(alpha, (3, 3), 0.35)
+    alpha = np.clip(alpha, 0.0, 1.0)
+    crop[alpha < 0.03] = 0
+
+    if grayscale:
+        crop = cv2.cvtColor(cv2.cvtColor(crop, cv2.COLOR_BGR2GRAY), cv2.COLOR_GRAY2BGR)
+    if scrub:
+        crop = ((crop.astype(np.uint16) // 4) * 4).astype(np.uint8)
+
+    rgba = np.dstack([crop, (alpha * 255.0).astype(np.uint8)])
+    ok, buf = cv2.imencode(".png", rgba, [int(cv2.IMWRITE_PNG_COMPRESSION), 6])
+    if not ok:
+        return "", (0.0, 0.0, 0.0, 0.0)
+    b64 = base64.b64encode(buf.tobytes()).decode("ascii")
+    return f"data:image/png;base64,{b64}", (float(x0), float(y0), float(x1 - x0), float(y1 - y0))
+
+
 def _trace_mask(mask: np.ndarray, unit: float = 1.0, offset: tuple[float, float] = (0.0, 0.0)) -> tuple[str, int]:
     contours, hierarchy = cv2.findContours(mask, cv2.RETR_CCOMP, cv2.CHAIN_APPROX_SIMPLE)
     if not contours:
@@ -229,13 +293,15 @@ def extract_images_and_icons(
     photo_grayscale: bool = False,
     photo_scrub: bool = False,
     trace_icons: bool = True,
+    icon_mode: str = "vector",
 ) -> tuple[list[ImageBlock], list[IconPath]]:
     h, w = prep.labels.shape
     flat = prep.flat
 
     # Colours that describe flat UI surfaces.  Anything far from these is
     # content (text, icon, photo) and becomes a candidate.
-    palette_colors = [np.array([int(background[1:3], 16), int(background[3:5], 16), int(background[5:7], 16)])]
+    bg_rgb = (int(background[1:3], 16), int(background[3:5], 16), int(background[5:7], 16))
+    palette_colors = [np.array(bg_rgb[::-1], dtype=np.float32)]
     # panels are stored in RGB hex; convert to BGR for distance tests
     for p in panels:
         rgb = (int(p.fill[1:3], 16), int(p.fill[3:5], 16), int(p.fill[5:7], 16))
@@ -278,7 +344,7 @@ def extract_images_and_icons(
     n, cc, stats, _ = cv2.connectedComponentsWithStats(residual, 8)
     images: list[ImageBlock] = []
     icons: list[IconPath] = []
-    icon_comps: list[tuple[int, int, int, int]] = []
+    icon_comps: list[tuple[int, int, int, int, int]] = []
     photo_boxes: list[tuple[int, int, int, int]] = []
     s = prep.scale
     for i in range(1, n):
@@ -377,7 +443,7 @@ def extract_images_and_icons(
             # A small glyph inside a button should be traced even if the
             # detector first saw it as a photo-like blob.
             if in_small_card and full_w < 70 and full_h < 70:
-                icon_comps.append((x, y, cw, ch))
+                icon_comps.append((x, y, cw, ch, i))
                 continue
 
             pad = max(1, s)
@@ -432,20 +498,52 @@ def extract_images_and_icons(
             )
             photo_boxes.append((orig_x, orig_y, orig_cw, orig_ch))
         else:
-            icon_comps.append((x, y, cw, ch))
+            icon_comps.append((x, y, cw, ch, i))
 
-    if not trace_icons:
+    icon_mode = (icon_mode or "vector").lower()
+    if not trace_icons and icon_mode != "embed":
         return images, []
 
-    # Do not trace text or detail *inside* a photo crop: it would duplicate
-    # the embedded pixels and produce stray shapes.
-    for x, y, cw, ch in icon_comps:
+    # Do not trace or embed text/detail *inside* a photo crop: it would
+    # duplicate the embedded pixels and produce stray shapes.
+    for x, y, cw, ch, comp_id in icon_comps:
         cx, cy = x + cw / 2.0, y + ch / 2.0
         inside_photo = any(
             px <= cx <= px + pw and py <= cy <= py + ph
             for px, py, pw, ph in photo_boxes
         )
-        if not inside_photo:
+        if inside_photo:
+            continue
+        if icon_mode == "embed":
+            data_uri, crop_box = _embed_icon_crop(
+                prep,
+                cc,
+                comp_id,
+                x,
+                y,
+                cw,
+                ch,
+                palette_bgr=pal,
+                grayscale=photo_grayscale,
+                scrub=photo_scrub,
+            )
+            if not data_uri:
+                continue
+            images.append(
+                ImageBlock(
+                    x=x * s,
+                    y=y * s,
+                    w=cw * s,
+                    h=ch * s,
+                    rx=0.0,
+                    fill="#808080",
+                    kind="icon",
+                    crop_box=crop_box,
+                    data_uri=data_uri,
+                    embedded=True,
+                )
+            )
+        else:
             icons.extend(_vectorize_icon(prep, x, y, cw, ch, pal[:, ::-1]))
 
     # A component can produce many tiny paths; keep the output bounded.

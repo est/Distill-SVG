@@ -162,7 +162,7 @@ distill_core/   # 进程入口：解析 NDJSON，调 api.convert
 
 ### 4.2 输出模型
 
-- **Scene JSON v1**：`width/height/style/photos/panels/images/icons/texts`；`images` 带 `crop_box`、`embedded`（base64 只放 SVG，不重复进 scene），`texts` 带 `text/x/baseline/size/family/weight/fill`。这就是编辑器修改的唯一中间层。
+- **Scene JSON v1**：`width/height/style/photos/panels/images/icon_images/icons/texts`；`images` 是照片/头像，`icon_images` 是 `--icon-mode embed` 的图标裁剪，都带 `crop_box`、`embedded`（base64 只放 SVG，不重复进 scene），`texts` 带 `text/x/baseline/size/family/weight/fill`。这就是编辑器修改的唯一中间层。
 - **flat / wireframe 共用 scene**：切换样式只换渲染器，不重跑 OCR/CV；线框模式把面板变白底灰边、文本/图标单色，照片转灰度或 outline。
 - **文本始终 `<text>`**：保证可复制/可搜索；未来 `--text=path` 只作为归档选项，转 path 后要在 UI 明示“不可复制”。
 - **照片裁剪**：`photos=embed` 输出 data-URI `<image>` + `clipPath`；`placeholder`/`outline` 二选一；裁剪重新编码、限制最大边、默认去元数据。

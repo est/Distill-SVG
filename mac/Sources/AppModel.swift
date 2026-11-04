@@ -94,6 +94,10 @@ final class AppModel: ObservableObject {
             options.style = .wireframe
             options.photos = .placeholder
         }
+        if let icons = ProcessInfo.processInfo.environment["DISTILL_SVG_ICONS"],
+           let mode = IconMode(rawValue: icons) {
+            options.iconMode = mode
+        }
         if let input = ProcessInfo.processInfo.environment["DISTILL_SVG_INPUT"] {
             let url = URL(fileURLWithPath: input)
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { [weak self] in

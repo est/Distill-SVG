@@ -46,13 +46,18 @@ def parse_args(argv=None):
     p.add_argument("--photo-scrub", action="store_true",
                    help="drop 2 LSBs per channel in embedded photos (anti-LSB-stego)")
     p.add_argument("--fast", action="store_true",
-                   help="quick preview: no font voting, no icon tracing")
+                   help="quick preview: no font voting, no icon tracing (embed icons still apply)")
     p.add_argument("--quick", action="store_true",
                    help="preset: wireframe + fast + placeholder (smallest/fastest)")
     p.add_argument("--icons", action="store_true",
                    help="trace icons even with --fast")
+    p.add_argument("--icon-mode", choices=["auto", "vector", "embed"], default="auto",
+                   help="auto: cut out icons for flat, trace for wireframe (default); "
+                        "vector: trace paths; embed: cut icon pixels out as PNG "
+                        "(embed is ignored with --photos placeholder/outline or --quick)")
     p.add_argument("--no-icons", action="store_true", help="omit traced icons")
-    p.add_argument("--no-images", action="store_true", help="omit images entirely")
+    p.add_argument("--no-images", action="store_true",
+                   help="omit photo/avatar images (use --no-icons for icons)")
     p.add_argument("--keep-photo-text", action="store_true",
                    help="keep OCR text that lies inside an embedded photo (may double-draw it)")
     p.add_argument("--font-dir", action="append", default=[], help="extra font directory")
@@ -88,6 +93,7 @@ def main(argv=None) -> int:
         fast=args.fast,
         quick=args.quick,
         icons=args.icons,
+        icon_mode=args.icon_mode,
         no_icons=args.no_icons,
         no_images=args.no_images,
         keep_photo_text=args.keep_photo_text,

@@ -32,6 +32,31 @@ enum PhotoMode: String, CaseIterable, Identifiable {
     }
 }
 
+enum IconMode: String, CaseIterable, Identifiable {
+    case auto
+    case vector
+    case embed
+    case none
+
+    var id: String { rawValue }
+    var title: String {
+        switch self {
+        case .auto: return "自动"
+        case .vector: return "矢量化"
+        case .embed: return "抠图嵌入"
+        case .none: return "不输出"
+        }
+    }
+    var help: String {
+        switch self {
+        case .auto: return "扁平色自动抠图嵌入，线框自动矢量描摹；快速模式下线框跳过图标。"
+        case .vector: return "用 SVG 路径描摹图标，即使快速模式也描摹。"
+        case .embed: return "从原图抠出图标像素并以 PNG 嵌入，最接近原图；线框模式自动灰度，照片占位/轮廓模式自动切回矢量。"
+        case .none: return "SVG 中不包含图标。"
+        }
+    }
+}
+
 enum StrokeMode: String, CaseIterable, Identifiable {
     case off
     case auto
@@ -89,8 +114,7 @@ struct RenderOptions: Equatable {
     var photoGrayscale: Bool = false
     var photoScrub: Bool = false
     var keepPhotoText: Bool = false
-    var traceIcons: Bool = false
-    var noIcons: Bool = false
+    var iconMode: IconMode = .auto
     var languages: LanguageChoice = .zhEn
 
     enum Quality: String, CaseIterable, Identifiable {
@@ -118,8 +142,9 @@ struct RenderOptions: Equatable {
             "photo_scrub": photoScrub,
             "keep_photo_text": keepPhotoText,
             "fast": quality.fast,
-            "icons": traceIcons,
-            "no_icons": noIcons,
+            "icons": iconMode == .vector,
+            "no_icons": iconMode == .none,
+            "icon_mode": iconMode == .none ? "vector" : iconMode.rawValue,
             "languages": languages.visionLanguages.joined(separator: ","),
             // OCR lines are supplied by the shell; this is only a fallback.
             "ocr_engine": "vision",

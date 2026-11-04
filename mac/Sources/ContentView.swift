@@ -459,6 +459,11 @@ private struct SVGPreview: NSViewRepresentable {
 
 private struct Sidebar: View {
     @ObservedObject var model: AppModel
+#if DEBUG_CAPTURE
+    @State private var advancedOpen = ProcessInfo.processInfo.environment["DISTILL_SVG_ADVANCED"] == "1"
+#else
+    @State private var advancedOpen = false
+#endif
 
     var body: some View {
         VStack(spacing: 0) {
@@ -550,7 +555,15 @@ private struct Sidebar: View {
 
     private var photoSection: some View {
         SidebarSection("照片与头像") {
-            Picker("照片", selection: $model.options.photos) {
+            Picker("照片", selection: Binding(
+                get: { model.options.photos },
+                set: { mode in
+                    model.options.photos = mode
+                    if mode != .embed, model.options.iconMode == .embed {
+                        model.options.iconMode = .vector
+                    }
+                }
+            )) {
                 ForEach(PhotoMode.allCases) { mode in
                     Text(mode.title).tag(mode)
                 }
@@ -572,6 +585,7 @@ private struct Sidebar: View {
                 Button("一键隐私模式") {
                     model.options.style = .wireframe
                     model.options.photos = .placeholder
+                    model.options.iconMode = .vector
                     model.convert()
                 }
                 .buttonStyle(.link)
@@ -593,8 +607,8 @@ private struct Sidebar: View {
             .labelsHidden()
 
             Text(model.options.quality == .preview
-                 ? "跳过字体投票和图标描摹，适合边调边看。"
-                 : "包含字体匹配与图标描摹，导出质量最好。")
+                 ? "跳过字体投票，适合边调边看；图标仍按「图标」选项处理。"
+                 : "包含字体匹配与图标处理，导出质量最好。")
                 .font(.system(size: 11))
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -604,7 +618,7 @@ private struct Sidebar: View {
     // MARK: Advanced
 
     private var advancedSection: some View {
-        DisclosureGroup {
+        DisclosureGroup(isExpanded: $advancedOpen) {
             VStack(alignment: .leading, spacing: 11) {
                 row("分隔线") {
                     Picker("", selection: $model.options.strokes) {
@@ -649,19 +663,26 @@ private struct Sidebar: View {
                     }
                 }
 
-                Toggle("描摹图标", isOn: Binding(
-                    get: {
-                        !model.options.noIcons
-                            && (model.options.quality == .full || model.options.traceIcons)
-                    },
-                    set: { on in
-                        model.options.noIcons = !on
-                        model.options.traceIcons = on
+                row("图标") {
+                    Picker("", selection: $model.options.iconMode) {
+                        ForEach(IconMode.allCases.filter {
+                            $0 != .embed || model.options.photos == .embed
+                        }) { mode in
+                            Text(mode.title).tag(mode)
+                        }
                     }
-                ))
-                .toggleStyle(.checkbox)
-                .font(.system(size: 12))
-                .help("关闭后 SVG 不含图标路径；快速模式下开启会额外描摹图标")
+                    .pickerStyle(.menu)
+                    .labelsHidden()
+                    .frame(width: 108)
+                    .help(model.options.iconMode.help)
+                }
+
+                if model.options.iconMode == .embed {
+                    Text("抠图会把图标像素嵌入 SVG；线框模式下自动灰度，照片占位/轮廓模式下自动切回矢量。")
+                        .font(.system(size: 11))
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
 
                 Toggle("照片灰度", isOn: $model.options.photoGrayscale)
                     .toggleStyle(.checkbox)
