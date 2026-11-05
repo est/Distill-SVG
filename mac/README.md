@@ -53,6 +53,9 @@ DistillSVG.app/
   the right. The result is rendered in `WKWebView` with JavaScript disabled;
   the original image is shown natively. The default preview is fit-to-width
   with vertical scrolling, which keeps long mobile screenshots readable.
+  Screenshots can also be pasted from the clipboard (⌘V; text fields keep
+  their normal paste behavior), and ⌘N clears the current document without
+  restarting the app.
 - **OCR** — the shell runs `VNRecognizeTextRequest` (`VisionOCR.swift`) and
   passes line boxes to the core. Therefore the bundled core does **not** need
   `swiftc`, the compile-on-first-run helper, RapidOCR or ONNX Runtime.

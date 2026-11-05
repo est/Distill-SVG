@@ -78,6 +78,73 @@ def _color_mask(crop: np.ndarray, color: np.ndarray, tol: float = 12.0) -> np.nd
     return d <= tol
 
 
+def _panel_bbox_match(
+    x: int,
+    y: int,
+    cw: int,
+    ch: int,
+    scale: int,
+    panels: list[Panel],
+    tol: float,
+) -> Panel | None:
+    """Return the panel whose full-res box nearly equals this component box."""
+    x0, y0 = x * scale, y * scale
+    x1, y1 = (x + cw) * scale, (y + ch) * scale
+    for panel in panels:
+        if (
+            abs(x0 - panel.x) <= tol
+            and abs(y0 - panel.y) <= tol
+            and abs(x1 - (panel.x + panel.w)) <= tol
+            and abs(y1 - (panel.y + panel.h)) <= tol
+        ):
+            return panel
+    return None
+
+
+def _is_panel_edge_component(
+    cc: np.ndarray,
+    comp_id: int,
+    x: int,
+    y: int,
+    cw: int,
+    ch: int,
+    scale: int,
+    panels: list[Panel],
+) -> bool:
+    """Detect a panel's own rounded/antialiased border caught as a component.
+
+    The colour and local-variance passes both flag the rim of a rounded panel
+    (it is neither the flat fill nor a palette colour).  After the border band
+    is erased, what remains is a thin ring whose bounding box is the panel
+    itself.  Left alone it becomes an embedded "icon" crop covering the whole
+    panel, and text inside that crop is then discarded as duplicated photo
+    content.
+
+    A genuine avatar/photo/icon inside a panel can also share its bounding box
+    (e.g. a flat blue avatar that panels.py recovered as a round panel), so a
+    bbox match alone is not enough.  Only skip components whose pixels hug the
+    box border: those are rims.  Solid content stays.
+    """
+    # A few pixels: panel and component boxes are quantised differently.
+    tol = max(3.0, 2.0 * scale)
+    if _panel_bbox_match(x, y, cw, ch, scale, panels, tol) is None:
+        return False
+
+    comp = cc[y:y + ch, x:x + cw] == comp_id
+    ys, xs = np.where(comp)
+    if len(xs) == 0:
+        return False
+    # Distance from every component pixel to the component box border, in
+    # full-res pixels.  A rim has almost all pixels close to the border; a
+    # filled disc/photo has most pixels near the centre.
+    inset = np.minimum(
+        np.minimum(xs, cw - 1 - xs),
+        np.minimum(ys, ch - 1 - ys),
+    ) * scale
+    band = max(2.0, 1.5 * scale)
+    return float((inset <= band).mean()) >= 0.55
+
+
 def _embed_crop(
     prep: Prepared,
     box: tuple[float, float, float, float],
@@ -366,6 +433,12 @@ def extract_images_and_icons(
         if max(cw / max(ch, 1), ch / max(cw, 1)) > 14:
             continue
         if area / float(cw * ch) < 0.15:
+            continue
+
+        # The panel's own rounded border is not an icon/photo.  Skipping it
+        # here also keeps the OCR text inside the panel from being dropped by
+        # api.py as "already inside an embedded image".
+        if _is_panel_edge_component(cc, i, x, y, cw, ch, s, panels):
             continue
 
         full_w, full_h = cw * s, ch * s

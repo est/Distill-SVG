@@ -136,6 +136,123 @@ final class AppModel: ObservableObject {
         }
     }
 
+    /// Import an image from the general pasteboard.  Screenshot tools provide
+    /// TIFF/PNG data while Finder or browser copies can provide a file URL;
+    /// both paths end in `open(url:)` because the pipeline needs a real file.
+    func pasteImage() {
+        let pasteboard = NSPasteboard.general
+
+        if let urls = pasteboard.readObjects(
+            forClasses: [NSURL.self],
+            options: [.urlReadingFileURLsOnly: true]
+        ) as? [URL],
+           let url = urls.first(where: { Self.supportedExtensions.contains($0.pathExtension.lowercased()) }) {
+            open(url: url)
+            return
+        }
+
+        let data: Data?
+        if let png = pasteboard.data(forType: .png) {
+            data = png
+        } else if let tiff = pasteboard.data(forType: .tiff),
+                  let rep = NSBitmapImageRep(data: tiff) {
+            data = rep.representation(using: .png, properties: [:])
+        } else if let image = NSImage(pasteboard: pasteboard) {
+            data = Self.pngData(from: image)
+        } else {
+            data = nil
+        }
+
+        guard let data else {
+            errorMessage = "剪贴板中没有图片。复制一张截图后再试。"
+            return
+        }
+
+        // The core only accepts file paths, so materialize the paste in this
+        // session's work directory and go through the normal open path.
+        let url = workDir.appendingPathComponent("clipboard-\(UUID().uuidString.prefix(8)).png")
+        do {
+            try data.write(to: url, options: .atomic)
+        } catch {
+            errorMessage = "无法保存剪贴板图片：\(error.localizedDescription)"
+            return
+        }
+        open(url: url)
+    }
+
+    /// ⌘V is also the standard text-paste shortcut.  Keep filename fields and
+    /// the Python path field working by forwarding the command to a focused
+    /// text editor; otherwise import the clipboard image.
+    func pasteCommand() {
+        if let responder = NSApp.keyWindow?.firstResponder ?? NSApp.mainWindow?.firstResponder {
+            if let editor = responder as? NSTextView {
+                editor.paste(nil)
+                return
+            }
+            if responder is NSTextField {
+                if !NSApp.sendAction(#selector(NSTextView.paste(_:)), to: nil, from: nil) {
+                    pasteImage()
+                }
+                return
+            }
+        }
+        pasteImage()
+    }
+
+    private static func pngData(from image: NSImage) -> Data? {
+        if let rep = image.representations
+            .compactMap({ $0 as? NSBitmapImageRep })
+            .max(by: { $0.pixelsWide * $0.pixelsHigh < $1.pixelsWide * $1.pixelsHigh }),
+           let png = rep.representation(using: .png, properties: [:]) {
+            return png
+        }
+        if let tiff = image.tiffRepresentation,
+           let rep = NSBitmapImageRep(data: tiff),
+           let png = rep.representation(using: .png, properties: [:]) {
+            return png
+        }
+        var rect = CGRect(origin: .zero, size: image.size)
+        guard let cgImage = image.cgImage(forProposedRect: &rect, context: nil, hints: nil) else {
+            return nil
+        }
+        return NSBitmapImageRep(cgImage: cgImage).representation(using: .png, properties: [:])
+    }
+
+    /// Clear the current document without restarting the app or the core.
+    /// Render options are intentionally preserved.  An in-flight job is
+    /// cancelled and marked discarded; `jobInCore` is kept as the core-busy
+    /// marker so a later paste queues behind the cancel instead of colliding
+    /// with the single-job worker.
+    func newDocument() {
+        ocrTask?.cancel()
+        ocrTask = nil
+        generation += 1
+
+        if let job = jobInCore {
+            discardedJob = job
+            core.cancel(id: job)
+        }
+        pendingRerender = false
+        cancelRequested = false
+        convertWhenReady = false
+        isConverting = false
+        startedAt = nil
+        activeOptions = nil
+
+        inputURL = nil
+        inputImage = nil
+        pixelSize = nil
+        result = nil
+        svgText = nil
+        lastRenderedOptions = nil
+        errorMessage = nil
+        logs.removeAll()
+        progress = 0
+        stageLabel = ""
+        elapsed = 0
+        previewMode = .original
+    }
+
     func open(url: URL) {
         guard Self.supportedExtensions.contains(url.pathExtension.lowercased()) else {
             errorMessage = "只支持 PNG / JPEG / WebP 图片。"
@@ -161,9 +278,14 @@ final class AppModel: ObservableObject {
 
     func convert() {
         guard inputURL != nil else { return }
-        if isConverting, let running = jobInCore {
+        // `jobInCore` can outlive `isConverting` after `newDocument()` marks a
+        // cancelled job as discarded; it still means the worker is busy.
+        if let running = jobInCore {
             discardedJob = running
             pendingRerender = true
+            // After `newDocument()` this flag is already false; turning it
+            // back on keeps the waiting-for-cancel state visible.
+            isConverting = true
             requestCancel(explicit: false)
             return
         }
@@ -494,6 +616,13 @@ final class AppModel: ObservableObject {
     }
 
     private func finishDiscardedJob() {
+        // A newer document may already have started its own conversion while
+        // the superseded job was still shutting down.  Do not clear that job's
+        // state (or its `isConverting` / progress) here.
+        if let current = jobInCore, current != discardedJob {
+            discardedJob = nil
+            return
+        }
         jobInCore = nil
         discardedJob = nil
         startedAt = nil

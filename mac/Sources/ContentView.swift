@@ -73,6 +73,11 @@ struct AppCommands: Commands {
 
     var body: some Commands {
         CommandGroup(replacing: .newItem) {
+            Button("新建截图") { model.newDocument() }
+                .keyboardShortcut("n")
+            Button("从剪贴板粘贴") { model.pasteCommand() }
+                .keyboardShortcut("v")
+            Divider()
             Button("打开图片…") { model.chooseImage() }
                 .keyboardShortcut("o")
             Divider()
@@ -308,9 +313,16 @@ private struct EmptyState: View {
                     .font(.callout)
                     .foregroundStyle(.secondary)
             }
-            Button("选择图片…") { model.chooseImage() }
-                .buttonStyle(.borderedProminent)
-                .controlSize(.large)
+            HStack(spacing: 10) {
+                Button("选择图片…") { model.chooseImage() }
+                    .buttonStyle(.borderedProminent)
+                Button { model.pasteImage() } label: {
+                    Label("从剪贴板粘贴", systemImage: "doc.on.clipboard")
+                }
+                .buttonStyle(.bordered)
+                .help("把剪贴板中的截图直接载入 (⌘V)")
+            }
+            .controlSize(.large)
             Text("PNG · JPEG · WebP    全程本地处理")
                 .font(.caption2)
                 .foregroundStyle(.tertiary)
@@ -520,9 +532,19 @@ private struct Sidebar: View {
                             .foregroundStyle(.secondary)
                     }
                     Spacer(minLength: 4)
-                    Button("更换") { model.chooseImage() }
-                        .buttonStyle(.link)
-                        .font(.system(size: 11))
+                    HStack(spacing: 9) {
+                        Button { model.pasteImage() } label: {
+                            Image(systemName: "doc.on.clipboard")
+                        }
+                        .buttonStyle(.plain)
+                        .foregroundStyle(.secondary)
+                        .help("从剪贴板粘贴 (⌘V)")
+                        Button("更换") { model.chooseImage() }
+                        Button("新建") { model.newDocument() }
+                            .help("清空当前截图 (⌘N)")
+                    }
+                    .buttonStyle(.link)
+                    .font(.system(size: 11))
                 }
             } else {
                 Button { model.chooseImage() } label: {
@@ -538,6 +560,12 @@ private struct Sidebar: View {
                     .clipShape(RoundedRectangle(cornerRadius: 8))
                 }
                 .buttonStyle(.plain)
+
+                Button { model.pasteImage() } label: {
+                    Label("从剪贴板粘贴", systemImage: "doc.on.clipboard")
+                }
+                .buttonStyle(.link)
+                .font(.system(size: 11))
             }
         }
     }
