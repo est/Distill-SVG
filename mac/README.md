@@ -103,16 +103,22 @@ full build.
 
 ## GitHub Actions
 
-[`.github/workflows/macos.yml`](../.github/workflows/macos.yml) builds on
-`macos-15` (arm64):
+[`.github/workflows/macos.yml`](../.github/workflows/macos.yml) builds **only
+when a `v*` tag is pushed**, on `macos-15` (arm64):
 
 1. full self-contained DMG (`...-full.dmg`)
 2. BYO-Python DMG (`...-python.dmg`)
 3. verifies both DMGs and writes `SHA256SUMS`
 4. uploads **two separate artifacts** (`...-full`, `...-python`); each
    artifact is a zip containing its `.dmg` and `SHA256SUMS`
-5. on a `v*` tag, creates a GitHub release with the two raw `.dmg` files as
-   direct assets
+5. creates a GitHub release with the two raw `.dmg` files as direct assets
+
+A normal push to `main` does not run this workflow. To release:
+
+```bash
+git tag v0.2.0
+git push origin v0.2.0
+```
 
 The workflow caches the OpenCV source only; the venv/build tree is rebuilt to
 avoid caching absolute paths. The full build needs network for the first

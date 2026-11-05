@@ -143,7 +143,7 @@ self-contained (no Python required): **~41 MB app / ~14 MB DMG**. A second
 build mode, `BUNDLE_PYTHON=0`, produces a ~1 MB app / ~424 KB DMG that uses a
 user-supplied Python 3.10+; install dependencies into it with the command
 shown in the app's `转换 → Python 环境…` panel. GitHub Actions builds both
-DMGs on push/tag and publishes them as artifacts/release assets. The app
+DMGs when a `v*` tag is pushed and publishes them as release assets. The app
 itself does not use the network; only the first full build clones OpenCV
 source. See [`mac/README.md`](mac/README.md) for the architecture, option
 mapping, CI, signing/notarization and size breakdown.
