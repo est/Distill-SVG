@@ -1,6 +1,6 @@
-# distill-svg（蒸矢）
+# Distill-SVG 蒸矢
 
-> 中文名：**蒸矢** —— 把截图蒸馏成可编辑的 SVG。
+>  Distill png/jpg screenshots to copy-pastable SVG 把截图蒸馏成可编辑的 SVG。
 
 Screenshot → **flat-color or wireframe SVG**. Panels become rectangles, text
 stays real selectable text, icons/emoji are cut out or traced depending on
@@ -12,8 +12,6 @@ UI, not a compressed copy of the screenshot. Geometry, text and colours are
 rebuilt; the full-frame raster is never embedded. Photo/avatar crops can be
 embedded on demand.
 
-> Status: research prototype (v0.2). The two screenshots in `tests/` are
-> local-only and intentionally ignored by git.
 
 ## Features
 

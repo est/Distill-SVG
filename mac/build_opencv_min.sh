@@ -126,6 +126,33 @@ cat > "$VERSION_INC" <<'EOF'
 "OpenCV 4.13.0 (minimal distill-svg build)\n"
 EOF
 
+# OpenCV bakes CMAKE_INSTALL_PREFIX / OPENCV_BUILD_DIR into the data-file
+# lookup constants.  They are not used by this app (no haar cascades / test
+# data), but they leak the build-machine username/path into the shipped .so.
+DATA_CONFIG="$BUILD/opencv-build/opencv_data_config.hpp"
+if [[ -f "$DATA_CONFIG" ]]; then
+    "$VENV/bin/python" - "$DATA_CONFIG" <<'PYEOF'
+import re
+import sys
+from pathlib import Path
+path = Path(sys.argv[1])
+text = path.read_text()
+text = re.sub(
+    r'^#define OPENCV_INSTALL_PREFIX .*$',
+    '#define OPENCV_INSTALL_PREFIX "/opencv-min/install"',
+    text,
+    flags=re.MULTILINE,
+)
+text = re.sub(
+    r'^#define OPENCV_BUILD_DIR .*$',
+    '#define OPENCV_BUILD_DIR "/opencv-min/build"',
+    text,
+    flags=re.MULTILINE,
+)
+path.write_text(text)
+PYEOF
+fi
+
 echo "==> building (this is the long part)"
 cmake --build "$BUILD/opencv-build" --target install --parallel "$(sysctl -n hw.ncpu 2>/dev/null || echo 4)"
 

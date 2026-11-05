@@ -65,7 +65,10 @@ DistillSVG.app/
   only `core`, `imgproc`, `imgcodecs` and Python bindings. No video/FFmpeg,
   highgui, dnn, AVIF, TIFF or OpenEXR. Input support is deliberately limited
   to PNG/JPEG/WebP, which is what the app accepts. The resulting `cv2` is
-  ~8.6 MB inside the app instead of ~97 MB.
+  ~8.6 MB inside the app instead of ~97 MB. The generated OpenCV data-file
+  lookup paths are rewritten to neutral `/opencv-min/...` values, and
+  `build_app.sh` refuses to ship if a `/Users/` or `/home/` path remains in
+  `cv2.abi3.so` (strip and codesign do not remove string constants).
 - **Pillow prune** — `mac/prune_core.py` removes Pillow image-codec plugins and
   private dylibs that only the unused image I/O would need. Font rendering
   (`_imaging`/`_imagingft`) and its dependency closure are protected.

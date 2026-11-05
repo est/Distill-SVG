@@ -147,6 +147,13 @@ if [[ "$BUNDLE_PYTHON" == "1" ]]; then
     if [[ -f "$BUILD/opencv-min/opencv/LICENSE" ]]; then
         cp "$BUILD/opencv-min/opencv/LICENSE" "$APPCORE/LICENSE-opencv.txt"
     fi
+    # Do not ship build-machine paths in the OpenCV binary.  `strip` and code
+    # signing do not remove string constants; fail the build if one slips in.
+    CV2_SO="$APPCORE/_internal/cv2/cv2.abi3.so"
+    if [[ -f "$CV2_SO" ]] && grep -aEq '/(Users|home)/' "$CV2_SO"; then
+        echo "error: build-machine path found in $CV2_SO (refusing to ship)" >&2
+        exit 1
+    fi
 else
     echo "==> BYO Python: bundling source instead of a frozen runtime"
     mkdir -p "$APPCORE/python"
