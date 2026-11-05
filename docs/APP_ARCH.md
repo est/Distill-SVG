@@ -217,6 +217,10 @@ distill_core/   # 进程入口：解析 NDJSON，调 api.convert
 
 ### 5.1 体积预算（量级，需构建称重）
 
+> 2026-11 v1 实测（arm64，ad-hoc）：`.app` 约 41 MB、DMG（ULMO）约 14 MB；
+> 最小 OpenCV（core/imgproc/imgcodecs）实测 8.6 MB。构建方式与开关见
+> `mac/README.md`。下表是早期预算，保留作对照。
+
 | 组件 | 体积（安装后） | 说明 |
 | --- | --- | --- |
 | 壳（SwiftUI/WinUI） | 2-15 MB | 不含 WebView 运行时；WinUI framework-dependent 更小 |

@@ -8,8 +8,8 @@ This is the v1 of the shell described in [`docs/APP_ARCH.md`](../docs/APP_ARCH.m
 ## Build
 
 ```bash
-python3 -m pip install -r requirements.txt pyinstaller
 ./mac/build_app.sh
+open dist/DistillSVG.app
 ```
 
 Outputs:
@@ -17,17 +17,23 @@ Outputs:
 - `dist/DistillSVG.app` — double-clickable app (ad-hoc signed)
 - `dist/DistillSVG-0.2.0-<arch>.dmg` — compressed copy + install notes
 
-The build machine needs Xcode command-line tools (`swiftc`) and a Python with
-`numpy`, `opencv-python`, `Pillow` and `PyInstaller` available as `python3`
-(override with `PYTHON=/path/to/python ./mac/build_app.sh`).
+The build machine needs macOS 13+, Xcode command-line tools (`swiftc`),
+`cmake`, `git`, and Python 3.11+ (3.14 tested). The script creates
+`build/opencv-min/venv` from the pinned `mac/requirements-core.txt`, clones and
+builds the minimal OpenCV (first run only), then uses that venv for PyInstaller.
 
 Useful flags:
 
 | flag | effect |
 | --- | --- |
 | `SKIP_CORE=1` | reuse `build/core/dist/distill-core` (fast UI iteration) |
+| `USE_MIN_OPENCV=0` | use the official opencv-python wheel (larger fallback) |
+| `OPENCV_VERSION=4.13.0` | OpenCV source tag; default 4.13.0 |
+| `FORCE=1` | rebuild `build/opencv-min` from scratch |
+| `PRUNE=0` | skip the Pillow plugin/dylib prune (default saves ~4.5 MB) |
 | `STRIP=0` | skip `strip -x` (default is on; saves ~14 MB) |
-| `PYTHON=...` | choose the Python used for the frozen core |
+| `DMG_FORMAT=ULFO` | faster DMG; default `ULMO` is smaller but slower to create/mount |
+| `PYTHON=...` | choose the Python used for the frozen core (skips auto-build) |
 
 ## How it is put together
 
@@ -52,6 +58,17 @@ DistillSVG.app/
   NDJSON over stdio (`hello`, `convert`, `progress`, `log`, `result`,
   `cancel`, `shutdown`). One worker lives for the whole session, so the
   expensive `cv2` import happens once.
+- **Minimal OpenCV** — `mac/build_opencv_min.sh` builds OpenCV 4.13.0 with
+  only `core`, `imgproc`, `imgcodecs` and Python bindings. No video/FFmpeg,
+  highgui, dnn, AVIF, TIFF or OpenEXR. Input support is deliberately limited
+  to PNG/JPEG/WebP, which is what the app accepts. The resulting `cv2` is
+  ~8.6 MB inside the app instead of ~97 MB.
+- **Pillow prune** — `mac/prune_core.py` removes Pillow image-codec plugins and
+  private dylibs that only the unused image I/O would need. Font rendering
+  (`_imaging`/`_imagingft`) and its dependency closure are protected.
+- **Notices** — the custom OpenCV build is Apache-2.0; its bundled image codecs
+  retain their own licenses. `mac/build_app.sh` copies OpenCV's `LICENSE` into
+  the app; review the third-party notices before public distribution.
 - **Saving** — the worker writes into a per-session temp directory; “保存 SVG…”
   copies that file wherever the user picks. The scene JSON is kept as well and
   can be exported from the menu. The temp directory is removed on normal quit;
@@ -117,17 +134,24 @@ the sandbox inherited-entitlement rules for the helper still apply.
 
 | component | size |
 | --- | --- |
-| `.app` | ~138 MB |
-| DMG (UDZO) | ~66 MB |
-| OpenCV (`cv2`) | ~109 MB (79% of the app) |
-| CPython dylib | 17 MB |
-| Pillow | 12 MB |
-| numpy | 6.6 MB |
+| `.app` | **~41 MB** |
+| DMG (ULMO) | **~14 MB** |
+| OpenCV (`cv2`) | 8.6 MB (20% of the app; was 97 MB) |
+| CPython dylib | 16 MB |
+| numpy | 6.2 MB |
+| Pillow (after prune) | 5.8 MB |
+| PyInstaller bootloader | 5.5 MB |
+| base_library + other | ~2 MB |
 
-Native Vision OCR removed RapidOCR + ONNX Runtime (roughly 50 MB) from the
-bundle; `strip -x` removes another ~14 MB. The remaining lever is a
-purpose-built OpenCV (no video/FFmpeg/text modules) — worth roughly 60 MB, but
-it needs a custom build and CI, so it is not part of v1.
+The size reduction came from three independent steps:
+
+1. Native Vision removed RapidOCR + ONNX Runtime (~50 MB).
+2. A purpose-built OpenCV without video/FFmpeg/dnn removed ~88 MB from `cv2`.
+3. `strip -x` (~14 MB), the Pillow prune (~4.5 MB), and ULMO DMG compression
+   (66 → 14 MB) handle the rest.
+
+`strip -S` adds nothing; `strip -N` breaks code signatures and startup. It is
+not used.
 
 ## Known limitations
 
@@ -140,4 +164,7 @@ it needs a custom build and CI, so it is not part of v1.
   `--icon-mode vector` for pure-vector icons. Placeholder/outline photo modes
   force vector icons so privacy mode never carries raster icon pixels.
 - Vision OCR quality is good but differs from CLI `--ocr-engine hybrid`.
+- The minimal OpenCV intentionally lacks video, AVIF, TIFF, OpenEXR and other
+  codecs. If a future feature needs them, re-enable the relevant flags in
+  `mac/build_opencv_min.sh` and expect the bundle to grow.
 - Not sandboxed and not notarized; see Distribution.

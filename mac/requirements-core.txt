@@ -1,0 +1,10 @@
+# Build-only pins for the frozen macOS core.
+#
+# The app uses a purpose-built OpenCV (see build_opencv_min.sh); do NOT add
+# opencv-python/opencv-python-headless here unless you deliberately fall back
+# to the official wheel.
+numpy==2.4.4
+Pillow==12.3.0
+pyinstaller==6.22.3
+pyinstaller-hooks-contrib==2026.9
+ninja==1.13.2

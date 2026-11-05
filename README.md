@@ -104,39 +104,44 @@ worker, runs Vision OCR in-process and previews the SVG in `WKWebView`.
 
 ### Build from source
 
-Requirements: macOS 13+, Xcode Command Line Tools (`swiftc`), and a Python
-3.10+ environment with this project's dependencies.
+Requirements: macOS 13+, Xcode Command Line Tools (`swiftc`), `cmake`, `git`,
+and Python 3.11+. The app build creates its own pinned Python venv; you do not
+need to install this project's CLI dependencies into your daily environment.
 
 ```bash
 cd distill-svg
-
-python3 -m pip install -r requirements.txt pyinstaller
-
 ./mac/build_app.sh
 open dist/DistillSVG.app
 ```
 
-The script freezes the Python core with PyInstaller (onedir), compiles the
-SwiftUI shell for the host architecture, strips the shared libraries, ad-hoc
-signs every Mach-O file and writes both `dist/DistillSVG.app` and
-`dist/DistillSVG-<version>-<arch>.dmg`.
+On the first run the script clones OpenCV 4.13.0 and builds a minimal
+`core+imgproc+imgcodecs` module (about 2 minutes, cached under
+`build/opencv-min/`). It then freezes the Python core with PyInstaller
+(onedir), compiles the SwiftUI shell, prunes unused Pillow codecs, strips the
+shared libraries, ad-hoc signs every Mach-O file and writes both
+`dist/DistillSVG.app` and `dist/DistillSVG-<version>-<arch>.dmg` (ULMO).
 
 Useful build switches:
 
 | switch | effect |
 | --- | --- |
 | `SKIP_CORE=1 ./mac/build_app.sh` | reuse the existing frozen core (fast UI iteration) |
+| `USE_MIN_OPENCV=0 ./mac/build_app.sh` | fall back to the official opencv-python wheel (larger) |
+| `OPENCV_VERSION=4.13.0 ./mac/build_app.sh` | pin a different OpenCV source tag |
+| `PRUNE=0 ./mac/build_app.sh` | skip the Pillow plugin/dylib prune |
 | `STRIP=0 ./mac/build_app.sh` | skip `strip -x` (larger app) |
-| `PYTHON=/path/to/python ./mac/build_app.sh` | choose the Python used for the bundle |
+| `DMG_FORMAT=ULFO ./mac/build_app.sh` | faster DMG; default `ULMO` is smaller |
+| `PYTHON=/path/to/python ./mac/build_app.sh` | use an explicit core Python |
 
-The first build takes roughly 1–2 minutes and needs ~400 MB of temporary disk
-space. Build artifacts (`build/`, `dist/`, `mac/AppIcon.icns`) and local test
-screenshots (`tests/`, `out/`) are git-ignored; the app icon is generated from
-`mac/make_icon.py` when missing.
+The first OpenCV build needs network access and roughly 500 MB under
+`build/opencv-min/`; later builds reuse the cache. Build artifacts (`build/`,
+`dist/`, `mac/AppIcon.icns`) and local test screenshots (`tests/`, `out/`) are
+git-ignored; the app icon is generated from `mac/make_icon.py` when missing.
 
 The build is arm64 (when built on Apple Silicon) and **ad-hoc signed, not
 notarized**; recipients must right-click → Open once. The bundle is
-self-contained (no Python required): ~138 MB app / ~66 MB DMG. See
+self-contained (no Python required): **~41 MB app / ~14 MB DMG**. The app
+itself does not use the network; only the first build clones OpenCV source. See
 [`mac/README.md`](mac/README.md) for the architecture, option mapping,
 signing/notarization and size breakdown.
 
