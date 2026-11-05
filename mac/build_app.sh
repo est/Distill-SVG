@@ -7,6 +7,7 @@
 #   PRUNE=0 ./mac/build_app.sh   # skip Pillow/plugin pruning
 #   DMG_FORMAT=ULFO ./mac/build_app.sh  # fastest DMG (default: ULMO, smallest)
 #   USE_MIN_OPENCV=0 ./mac/build_app.sh # use the official opencv-python wheel
+#   BUNDLE_PYTHON=0 ./mac/build_app.sh  # BYO Python (no bundled runtime)
 #   PYTHON=... ./mac/build_app.sh       # explicit core Python (skips auto-build)
 #
 # The result is unsigned (ad-hoc) and therefore suitable for local testing and
@@ -23,13 +24,16 @@ APP="$DIST/DistillSVG.app"
 VERSION="0.2.0"
 DMG_FORMAT="${DMG_FORMAT:-ULMO}"
 USE_MIN_OPENCV="${USE_MIN_OPENCV:-1}"
+BUNDLE_PYTHON="${BUNDLE_PYTHON:-1}"
 
 # Prefer the purpose-built OpenCV venv (core+imgproc+imgcodecs only, ~10 MB).
 # Set PYTHON=... to use an explicit environment, or USE_MIN_OPENCV=0 to fall
 # back to the official opencv-python wheel.
 if [[ -z "${PYTHON:-}" ]]; then
     MIN_PY="$BUILD/opencv-min/venv/bin/python"
-    if [[ "$USE_MIN_OPENCV" == "1" ]]; then
+    if [[ "$BUNDLE_PYTHON" == "0" ]]; then
+        PYTHON=python3
+    elif [[ "$USE_MIN_OPENCV" == "1" ]]; then
         if [[ "${SKIP_CORE:-0}" == "1" && ! -x "$MIN_PY" ]]; then
             PYTHON=python3
         else
@@ -56,7 +60,7 @@ fi
 MIN_MACOS="13.0"
 TARGET="${ARCH}-apple-macos${MIN_MACOS}"
 
-if [[ "${SKIP_CORE:-0}" != "1" ]]; then
+if [[ "$BUNDLE_PYTHON" == "1" ]] && [[ "${SKIP_CORE:-0}" != "1" ]]; then
     echo "==> building frozen core (PyInstaller onedir)"
     "$PYTHON" -m PyInstaller \
         --noconfirm --clean --onedir --name distill-core \
@@ -107,12 +111,14 @@ if [[ "${SKIP_CORE:-0}" != "1" ]]; then
         "$MAC/core_entry.py"
 fi
 
-CORE="$BUILD/core/dist/distill-core"
-[[ -x "$CORE/distill-core" ]] || { echo "core missing: $CORE" >&2; exit 1; }
+if [[ "$BUNDLE_PYTHON" == "1" ]]; then
+    CORE="$BUILD/core/dist/distill-core"
+    [[ -x "$CORE/distill-core" ]] || { echo "core missing: $CORE" >&2; exit 1; }
 
-if [[ "${PRUNE:-1}" == "1" ]]; then
-    echo "==> pruning unused Pillow plugins/codecs"
-    "$PYTHON" "$MAC/prune_core.py" "$CORE"
+    if [[ "${PRUNE:-1}" == "1" ]]; then
+        echo "==> pruning unused Pillow plugins/codecs"
+        "$PYTHON" "$MAC/prune_core.py" "$CORE"
+    fi
 fi
 
 echo "==> compiling SwiftUI shell ($TARGET)"
@@ -134,10 +140,33 @@ swiftc \
     -o "$APP/Contents/MacOS/DistillSVG"
 
 echo "==> bundling core"
-mkdir -p "$APP/Contents/Resources/core"
-cp -R "$CORE/." "$APP/Contents/Resources/core/"
-if [[ -f "$BUILD/opencv-min/opencv/LICENSE" ]]; then
-    cp "$BUILD/opencv-min/opencv/LICENSE" "$APP/Contents/Resources/core/LICENSE-opencv.txt"
+APPCORE="$APP/Contents/Resources/core"
+mkdir -p "$APPCORE"
+if [[ "$BUNDLE_PYTHON" == "1" ]]; then
+    cp -R "$CORE/." "$APPCORE/"
+    if [[ -f "$BUILD/opencv-min/opencv/LICENSE" ]]; then
+        cp "$BUILD/opencv-min/opencv/LICENSE" "$APPCORE/LICENSE-opencv.txt"
+    fi
+else
+    echo "==> BYO Python: bundling source instead of a frozen runtime"
+    mkdir -p "$APPCORE/python"
+    rsync -a --exclude '__pycache__' --exclude '*.pyc' "$ROOT/distill_svg" "$APPCORE/python/"
+    cp "$ROOT/mac/requirements-python.txt" "$APPCORE/python/requirements.txt"
+    cat > "$APPCORE/core.json" <<'JSON'
+{"mode":"external","source":"python","requirements":"python/requirements.txt"}
+JSON
+    cat > "$APPCORE/README-python.txt" <<'TXT'
+This is the BYO Python build of DistillSVG.
+
+The app does not bundle Python. Install the dependencies into any Python 3.10+
+environment you want to use:
+
+  /path/to/python3 -m pip install -r "<App>/Contents/Resources/core/python/requirements.txt"
+
+Then choose that interpreter in the app:
+  menu 转换 → Python 环境…  (or the error banner's "设置 Python…")
+The path is remembered in UserDefaults.
+TXT
 fi
 
 if [[ "${STRIP:-1}" == "1" ]]; then
@@ -145,11 +174,13 @@ if [[ "${STRIP:-1}" == "1" ]]; then
     # Never strip the PyInstaller bootloader: the PKG archive is appended to
     # the executable and `strip` would truncate it.  Shared libraries and
     # extension modules are safe; they are re-signed below.
-    while IFS= read -r -d '' file; do
-        if file "$file" | grep -q "Mach-O"; then
-            strip -x "$file" 2>/dev/null || true
-        fi
-    done < <(find "$APP/Contents/Resources/core/_internal" -type f -print0)
+    if [[ "$BUNDLE_PYTHON" == "1" ]]; then
+        while IFS= read -r -d '' file; do
+            if file "$file" | grep -q "Mach-O"; then
+                strip -x "$file" 2>/dev/null || true
+            fi
+        done < <(find "$APP/Contents/Resources/core/_internal" -type f -print0)
+    fi
     strip -x "$APP/Contents/MacOS/DistillSVG" 2>/dev/null || true
 fi
 
@@ -171,7 +202,12 @@ du -sh "$APP"
 
 echo "==> packaging DMG"
 mkdir -p "$DIST"
-DMG="$DIST/DistillSVG-${VERSION}-${ARCH}.dmg"
+if [[ "$BUNDLE_PYTHON" == "1" ]]; then
+    DMG_SUFFIX="-full"
+else
+    DMG_SUFFIX="-python"
+fi
+DMG="$DIST/DistillSVG-${VERSION}-${ARCH}${DMG_SUFFIX}.dmg"
 rm -f "$DMG"
 STAGE="$(mktemp -d)"
 cp -R "$APP" "$STAGE/"
@@ -183,13 +219,29 @@ cat > "$STAGE/安装说明.txt" <<'TXT'
   2. 首次打开若提示“无法验证开发者”：
      在 Finder 中右键 App →「打开」→ 再点「打开」。
      或执行：xattr -dr com.apple.quarantine /Applications/DistillSVG.app
-  3. 要求 macOS 13+，Apple Silicon（arm64）。
+  3. 要求 macOS 13+。
+TXT
+if [[ "$BUNDLE_PYTHON" == "0" ]]; then
+    cat >> "$STAGE/安装说明.txt" <<'TXT'
 
-说明
+这个 DMG 是 BYO Python 版本（不打包 Python）
+  · 需要一个 Python 3.10+，并在其中安装依赖：
+      /path/to/python3 -m pip install -r <App>/Contents/Resources/core/python/requirements.txt
+  · 打开 App 后使用「转换 → Python 环境…」选择该解释器。
+  · 也可以在启动前设置 DISTILL_SVG_PYTHON=/path/to/python3。
+TXT
+else
+    cat >> "$STAGE/安装说明.txt" <<'TXT'
+
+这个 DMG 是全自带版本（无需本机 Python）
   · 转换全程在本机完成，不联网、无遥测。
-  · 本构建未使用 Apple Developer ID 签名/公证，适合自用和小范围测试；
-    公开分发前需要签名与公证，否则 Gatekeeper 会拦截。
   · 照片“嵌入”模式会把照片像素写进 SVG，分享前请确认内容。
+TXT
+fi
+cat >> "$STAGE/安装说明.txt" <<'TXT'
+
+本构建未使用 Apple Developer ID 签名/公证，适合自用和小范围测试；
+公开分发前需要签名与公证，否则 Gatekeeper 会拦截。
 TXT
 # ULMO (LZMA) gives the smallest download but direct creation is unstable;
 # create a deterministic UDZO master and convert it.  ULFO is a faster,
@@ -204,7 +256,7 @@ else
     hdiutil create -quiet -volname "蒸矢 DistillSVG" -srcfolder "$STAGE" -ov -format "$DMG_FORMAT" "$DMG"
 fi
 rm -rf "$STAGE"
-( cd "$DIST" && shasum -a 256 "$(basename "$DMG")" > SHA256SUMS )
+( cd "$DIST" && shasum -a 256 *.dmg > SHA256SUMS )
 hdiutil verify "$DMG" >/dev/null && echo "dmg: verified"
 
 echo

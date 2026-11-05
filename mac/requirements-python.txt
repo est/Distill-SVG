@@ -1,0 +1,5 @@
+# Dependencies for the BYO-Python DMG (not bundled by the full app).
+# Install into the interpreter selected in 转换 → Python 环境…
+numpy>=1.26,<3
+opencv-python-headless>=4.9,<5
+Pillow>=10,<14

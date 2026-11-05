@@ -57,6 +57,64 @@ enum CoreEvent {
 final class CoreClient {
     var onEvent: ((CoreEvent) -> Void)?
 
+    static let pythonPathDefaultsKey = "DistillSVGPythonPath"
+    static let pythonPathEnvKey = "DISTILL_SVG_PYTHON"
+
+    static var coreRoot: URL {
+        Bundle.main.bundleURL.appendingPathComponent("Contents/Resources/core")
+    }
+
+    /// The "BYO Python" build has no frozen `distill-core`; it ships the
+    /// Python package and a JSON marker instead.
+    static var isExternalRuntime: Bool {
+        FileManager.default.fileExists(
+            atPath: coreRoot.appendingPathComponent("core.json").path
+        )
+    }
+
+    static var externalSourceDir: URL {
+        coreRoot.appendingPathComponent("python")
+    }
+
+    static var externalRequirements: URL {
+        externalSourceDir.appendingPathComponent("requirements.txt")
+    }
+
+    static func savedPythonPath() -> String? {
+        let defaults = UserDefaults.standard.string(forKey: pythonPathDefaultsKey)
+        if let defaults, !defaults.isEmpty { return defaults }
+        let env = ProcessInfo.processInfo.environment[pythonPathEnvKey]
+        if let env, !env.isEmpty { return env }
+        return nil
+    }
+
+    /// Pick the configured Python, then a few common locations.  Finder apps
+    /// do not inherit the user's shell PATH, so checking absolute locations is
+    /// important.
+    static func detectedPythonPath() -> String? {
+        if let saved = savedPythonPath(), FileManager.default.isExecutableFile(atPath: saved) {
+            return saved
+        }
+        var candidates = [
+            "/opt/homebrew/bin/python3",
+            "/usr/local/bin/python3",
+            "/usr/bin/python3",
+        ]
+        if let path = ProcessInfo.processInfo.environment["PATH"] {
+            for dir in path.split(separator: ":") {
+                candidates.append("\(dir)/python3")
+            }
+        }
+        for candidate in candidates where FileManager.default.isExecutableFile(atPath: candidate) {
+            return candidate
+        }
+        return nil
+    }
+
+    static func savePythonPath(_ path: String) {
+        UserDefaults.standard.set(path, forKey: pythonPathDefaultsKey)
+    }
+
     private var process: Process?
     private var stdinPipe: Pipe?
     private var stdoutPipe: Pipe?
@@ -89,17 +147,35 @@ final class CoreClient {
 
     func start() {
         guard !isRunning else { return }
-        guard let executable = Self.locateCore() else {
-            onEvent?(.error(id: nil, code: "CORE_MISSING", message: "找不到 distill-core。请重新构建 .app。"))
-            return
-        }
 
         let process = Process()
-        process.executableURL = executable
-        process.arguments = []
         var environment = ProcessInfo.processInfo.environment
         environment["PYTHONUNBUFFERED"] = "1"
         environment["PYTHONDONTWRITEBYTECODE"] = "1"
+
+        if Self.isExternalRuntime {
+            guard let python = Self.detectedPythonPath() else {
+                onEvent?(.error(
+                    id: nil,
+                    code: "PYTHON_NOT_FOUND",
+                    message: "这个版本不打包 Python。请选择一个已安装 numpy / opencv-python / Pillow 的 Python 3.10+。"
+                ))
+                return
+            }
+            process.executableURL = URL(fileURLWithPath: python)
+            process.arguments = ["-m", "distill_svg.worker"]
+            let source = Self.externalSourceDir.path
+            let existing = environment["PYTHONPATH"] ?? ""
+            environment["PYTHONPATH"] = existing.isEmpty ? source : "\(source):\(existing)"
+            environment["DISTILL_SVG_PYTHON"] = python
+        } else {
+            guard let executable = Self.locateCore() else {
+                onEvent?(.error(id: nil, code: "CORE_MISSING", message: "找不到 distill-core。请重新构建 .app。"))
+                return
+            }
+            process.executableURL = executable
+            process.arguments = []
+        }
         process.environment = environment
 
         let stdinPipe = Pipe()

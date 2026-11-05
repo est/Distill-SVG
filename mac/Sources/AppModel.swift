@@ -21,6 +21,8 @@ final class AppModel: ObservableObject {
     @Published var errorMessage: String?
     @Published var coreReady = false
     @Published var showingLog = false
+    @Published var showingPythonSetup = false
+    @Published var pythonPath = ""
     @Published var isDropTargeted = false
 
     @Published private(set) var lastRenderedOptions: RenderOptions?
@@ -45,6 +47,8 @@ final class AppModel: ObservableObject {
         guard result != nil else { return false }
         return lastRenderedOptions != options
     }
+
+    var isExternalRuntime: Bool { CoreClient.isExternalRuntime }
 
     var canSave: Bool { result != nil && svgText != nil }
 
@@ -73,6 +77,7 @@ final class AppModel: ObservableObject {
         workDir = base.appendingPathComponent(UUID().uuidString, isDirectory: true)
         try? FileManager.default.createDirectory(at: workDir, withIntermediateDirectories: true)
         cleanupOldWorkDirs(base: base)
+        pythonPath = CoreClient.detectedPythonPath() ?? ""
 
         core.onEvent = { [weak self] event in
             self?.handle(event)
@@ -246,6 +251,49 @@ final class AppModel: ObservableObject {
         core.cancel(id: job)
     }
 
+    func setPythonPath(_ path: String) {
+        let trimmed = (path.trimmingCharacters(in: .whitespacesAndNewlines) as NSString).expandingTildeInPath
+        guard !trimmed.isEmpty else {
+            errorMessage = "请选择一个 Python 可执行文件。"
+            return
+        }
+        pythonPath = trimmed
+        CoreClient.savePythonPath(trimmed)
+        showingPythonSetup = false
+        restartCore()
+    }
+
+    func choosePython() {
+        let panel = NSOpenPanel()
+        panel.title = "选择 Python 解释器"
+        panel.prompt = "选择"
+        panel.canChooseFiles = true
+        panel.canChooseDirectories = false
+        panel.allowsMultipleSelection = false
+        panel.showsHiddenFiles = true
+        panel.message = "请选择已安装 numpy、opencv-python、Pillow 的 Python 3.10+ 可执行文件。"
+        if panel.runModal() == .OK, let url = panel.url {
+            setPythonPath(url.path)
+        }
+    }
+
+    func copyPipCommand() {
+        let python = pythonPath.isEmpty ? "python3" : pythonPath
+        let command = "\(python) -m pip install -r \(CoreClient.externalRequirements.path)"
+        let pasteboard = NSPasteboard.general
+        pasteboard.clearContents()
+        pasteboard.setString(command, forType: .string)
+    }
+
+    func revealPythonRequirements() {
+        let url = CoreClient.externalRequirements
+        if FileManager.default.fileExists(atPath: url.path) {
+            NSWorkspace.shared.activateFileViewerSelecting([url])
+        } else {
+            NSWorkspace.shared.open(CoreClient.externalSourceDir)
+        }
+    }
+
     func restartCore() {
         ocrTask?.cancel()
         ocrTask = nil
@@ -328,6 +376,7 @@ final class AppModel: ObservableObject {
         switch event {
         case let .ready(core):
             coreReady = true
+            if isExternalRuntime { showingPythonSetup = false }
             logs.append("核心 \(core) 已就绪")
             if convertWhenReady {
                 convertWhenReady = false
@@ -386,6 +435,10 @@ final class AppModel: ObservableObject {
             if code == "CORE_MISSING" || code == "CORE_START_FAILED" {
                 coreReady = false
             }
+            if code == "PYTHON_NOT_FOUND" {
+                coreReady = false
+                showingPythonSetup = true
+            }
             errorMessage = message
 
         case let .cancelled(id):
@@ -419,6 +472,15 @@ final class AppModel: ObservableObject {
             let tail = stderr.trimmingCharacters(in: .whitespacesAndNewlines)
             if !tail.isEmpty {
                 logs.append("core stderr:\n\(tail.suffix(2000))")
+            }
+            if CoreClient.isExternalRuntime {
+                let lower = tail.lowercased()
+                if lower.contains("no module named") || lower.contains("modulenotfounderror")
+                    || lower.contains("syntaxerror") || lower.contains("unsupported operand") {
+                    showingPythonSetup = true
+                    errorMessage = "外部 Python 缺少依赖或版本过低，请重新选择 Python 环境。"
+                    return
+                }
             }
             errorMessage = "转换核心已退出（状态 \(status)）。可从「转换 → 重新启动核心」恢复。"
         }

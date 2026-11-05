@@ -95,6 +95,8 @@ struct AppCommands: Commands {
                 .disabled(!model.isConverting)
             Divider()
             Button("重新启动核心") { model.restartCore() }
+            Button("Python 环境…") { model.showingPythonSetup = true }
+                .disabled(!model.isExternalRuntime)
             Button("查看日志…") { model.showingLog = true }
         }
     }
@@ -120,6 +122,9 @@ struct ContentView: View {
         .toolbar { toolbar }
         .sheet(isPresented: $model.showingLog) {
             LogSheet(model: model)
+        }
+        .sheet(isPresented: $model.showingPythonSetup) {
+            PythonSetupView(model: model)
         }
         .navigationTitle(model.inputURL.map { "\($0.lastPathComponent) — 蒸矢" } ?? "蒸矢 DistillSVG")
     }
@@ -153,6 +158,8 @@ struct ContentView: View {
                 Button("导出场景 JSON…") { model.exportScene() }
                     .disabled(model.result?.scenePath == nil)
                 Divider()
+                Button("Python 环境…") { model.showingPythonSetup = true }
+                    .disabled(!model.isExternalRuntime)
                 Button("查看日志…") { model.showingLog = true }
                 Button("重新启动核心") { model.restartCore() }
             } label: {
@@ -470,7 +477,12 @@ private struct Sidebar: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 18) {
                     if let message = model.errorMessage {
-                        ErrorBanner(message: message) { model.errorMessage = nil }
+                        ErrorBanner(
+                            message: message,
+                            actionTitle: model.isExternalRuntime ? "设置 Python…" : nil,
+                            action: { model.showingPythonSetup = true },
+                            dismiss: { model.errorMessage = nil }
+                        )
                     }
                     sourceCard
                     styleSection
@@ -873,6 +885,8 @@ private struct StyleCard: View {
 
 private struct ErrorBanner: View {
     let message: String
+    let actionTitle: String?
+    let action: () -> Void
     let dismiss: () -> Void
 
     var body: some View {
@@ -890,6 +904,11 @@ private struct ErrorBanner: View {
                 }
                 .buttonStyle(.plain)
                 .foregroundStyle(.secondary)
+            }
+            if let actionTitle {
+                Button(actionTitle, action: action)
+                    .buttonStyle(.link)
+                    .font(.system(size: 11))
             }
         }
         .padding(9)

@@ -15,7 +15,9 @@ open dist/DistillSVG.app
 Outputs:
 
 - `dist/DistillSVG.app` — double-clickable app (ad-hoc signed)
-- `dist/DistillSVG-0.2.0-<arch>.dmg` — compressed copy + install notes
+- `dist/DistillSVG-0.2.0-<arch>-full.dmg` — full self-contained DMG
+- `BUNDLE_PYTHON=0 ./mac/build_app.sh` — BYO-Python DMG
+  `dist/DistillSVG-0.2.0-<arch>-python.dmg` (~424 KB, no runtime)
 
 The build machine needs macOS 13+, Xcode command-line tools (`swiftc`),
 `cmake`, `git`, and Python 3.11+ (3.14 tested). The script creates
@@ -27,6 +29,7 @@ Useful flags:
 | flag | effect |
 | --- | --- |
 | `SKIP_CORE=1` | reuse `build/core/dist/distill-core` (fast UI iteration) |
+| `BUNDLE_PYTHON=0` | BYO-Python build: bundle source, not a runtime; DMG gets a `-python` suffix |
 | `USE_MIN_OPENCV=0` | use the official opencv-python wheel (larger fallback) |
 | `OPENCV_VERSION=4.13.0` | OpenCV source tag; default 4.13.0 |
 | `FORCE=1` | rebuild `build/opencv-min` from scratch |
@@ -73,6 +76,41 @@ DistillSVG.app/
   copies that file wherever the user picks. The scene JSON is kept as well and
   can be exported from the menu. The temp directory is removed on normal quit;
   leftovers from a crash are deleted after 24 hours on the next launch.
+
+## Two build flavours
+
+| | full (default) | BYO Python (`BUNDLE_PYTHON=0`) |
+| --- | --- | --- |
+| app / DMG | ~41 MB / ~14 MB | ~1.0 MB / ~424 KB |
+| runtime | bundled CPython + minimal OpenCV | user-supplied Python 3.10+ |
+| packages | pinned in `mac/requirements-core.txt` | `mac/requirements-python.txt`, installed by the user |
+| UI | ready to run | `转换 → Python 环境…` selects the interpreter |
+
+The BYO build ships `distill_svg/` and `requirements.txt` under
+`Contents/Resources/core/python/`. It starts:
+
+```bash
+PYTHONPATH=... /path/to/python3 -m distill_svg.worker
+```
+
+The selected path is stored in UserDefaults; `DISTILL_SVG_PYTHON` is also
+honoured. The app copies the exact pip command to the clipboard; it does not
+silently install packages or fetch a runtime. PNG/JPEG/WebP only, same as the
+full build.
+
+## GitHub Actions
+
+[`.github/workflows/macos.yml`](../.github/workflows/macos.yml) builds on
+`macos-15` (arm64):
+
+1. full self-contained DMG (`...-full.dmg`)
+2. BYO-Python DMG (`...-python.dmg`)
+3. verifies both DMGs and writes `SHA256SUMS`
+4. uploads artifacts; on a `v*` tag creates a GitHub release
+
+The workflow caches the OpenCV source only; the venv/build tree is rebuilt to
+avoid caching absolute paths. The full build needs network for the first
+OpenCV clone; the BYO build does not download Python packages.
 
 ## CLI ↔ GUI options
 
@@ -136,6 +174,7 @@ the sandbox inherited-entitlement rules for the helper still apply.
 | --- | --- |
 | `.app` | **~41 MB** |
 | DMG (ULMO) | **~14 MB** |
+| BYO `.app` / DMG | **~1.0 MB / ~424 KB** |
 | OpenCV (`cv2`) | 8.6 MB (20% of the app; was 97 MB) |
 | CPython dylib | 16 MB |
 | numpy | 6.2 MB |

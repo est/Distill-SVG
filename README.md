@@ -119,13 +119,14 @@ On the first run the script clones OpenCV 4.13.0 and builds a minimal
 `build/opencv-min/`). It then freezes the Python core with PyInstaller
 (onedir), compiles the SwiftUI shell, prunes unused Pillow codecs, strips the
 shared libraries, ad-hoc signs every Mach-O file and writes both
-`dist/DistillSVG.app` and `dist/DistillSVG-<version>-<arch>.dmg` (ULMO).
+`dist/DistillSVG.app` and `dist/DistillSVG-<version>-<arch>-full.dmg` (ULMO).
 
 Useful build switches:
 
 | switch | effect |
 | --- | --- |
 | `SKIP_CORE=1 ./mac/build_app.sh` | reuse the existing frozen core (fast UI iteration) |
+| `BUNDLE_PYTHON=0 ./mac/build_app.sh` | BYO-Python build: no bundled runtime, ~1 MB app |
 | `USE_MIN_OPENCV=0 ./mac/build_app.sh` | fall back to the official opencv-python wheel (larger) |
 | `OPENCV_VERSION=4.13.0 ./mac/build_app.sh` | pin a different OpenCV source tag |
 | `PRUNE=0 ./mac/build_app.sh` | skip the Pillow plugin/dylib prune |
@@ -140,10 +141,14 @@ git-ignored; the app icon is generated from `mac/make_icon.py` when missing.
 
 The build is arm64 (when built on Apple Silicon) and **ad-hoc signed, not
 notarized**; recipients must right-click → Open once. The bundle is
-self-contained (no Python required): **~41 MB app / ~14 MB DMG**. The app
-itself does not use the network; only the first build clones OpenCV source. See
-[`mac/README.md`](mac/README.md) for the architecture, option mapping,
-signing/notarization and size breakdown.
+self-contained (no Python required): **~41 MB app / ~14 MB DMG**. A second
+build mode, `BUNDLE_PYTHON=0`, produces a ~1 MB app / ~424 KB DMG that uses a
+user-supplied Python 3.10+; install dependencies into it with the command
+shown in the app's `转换 → Python 环境…` panel. GitHub Actions builds both
+DMGs on push/tag and publishes them as artifacts/release assets. The app
+itself does not use the network; only the first full build clones OpenCV
+source. See [`mac/README.md`](mac/README.md) for the architecture, option
+mapping, CI, signing/notarization and size breakdown.
 
 ## Output
 
