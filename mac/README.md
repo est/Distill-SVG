@@ -15,9 +15,9 @@ open dist/DistillSVG.app
 Outputs:
 
 - `dist/DistillSVG.app` — double-clickable app (ad-hoc signed)
-- `dist/DistillSVG-0.2.0-<arch>-full.dmg` — full self-contained DMG
+- `dist/DistillSVG-v1.1-<arch>-full.dmg` — full self-contained DMG
 - `BUNDLE_PYTHON=0 ./mac/build_app.sh` — BYO-Python DMG
-  `dist/DistillSVG-0.2.0-<arch>-python.dmg` (~424 KB, no runtime)
+  `dist/DistillSVG-v1.1-<arch>-python.dmg` (~431 KB, no runtime)
 
 The build machine needs macOS 13+, Xcode command-line tools (`swiftc`),
 `cmake`, `git`, and Python 3.11+ (3.14 tested). The script creates
@@ -87,7 +87,7 @@ DistillSVG.app/
 
 | | full (default) | BYO Python (`BUNDLE_PYTHON=0`) |
 | --- | --- | --- |
-| app / DMG | ~41 MB / ~14 MB | ~1.0 MB / ~424 KB |
+| app / DMG | ~41 MB / ~14 MB | ~1.0 MB / ~431 KB |
 | runtime | bundled CPython + minimal OpenCV | user-supplied Python 3.10+ |
 | packages | pinned in `mac/requirements-core.txt` | `mac/requirements-python.txt`, installed by the user |
 | UI | ready to run | `转换 → Python 环境…` selects the interpreter |
@@ -119,8 +119,8 @@ when a `v*` tag is pushed**, on `macos-15` (arm64):
 A normal push to `main` does not run this workflow. To release:
 
 ```bash
-git tag v0.2.0
-git push origin v0.2.0
+git tag v1.1
+git push origin v1.1
 ```
 
 The workflow caches the OpenCV source only; the venv/build tree is rebuilt to
@@ -189,7 +189,7 @@ the sandbox inherited-entitlement rules for the helper still apply.
 | --- | --- |
 | `.app` | **~41 MB** |
 | DMG (ULMO) | **~14 MB** |
-| BYO `.app` / DMG | **~1.0 MB / ~424 KB** |
+| BYO `.app` / DMG | **~1.0 MB / ~431 KB** |
 | OpenCV (`cv2`) | 8.6 MB (20% of the app; was 97 MB) |
 | CPython dylib | 16 MB |
 | numpy | 6.2 MB |

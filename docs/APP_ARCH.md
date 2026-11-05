@@ -4,7 +4,7 @@
 >
 > 目标：本地/离线、隐私优先；先把管线做稳，再发可分发二进制；macOS 与 Windows 10 原生应用，Linux 只做 CLI，移动端后置。
 >
-> 说明：当前 `svg.py` 在 `photos=embed` 时输出 data-URI `<image>`；README 已同步为“整图不嵌入，照片/头像裁剪可嵌入”的 v0.2 默认。发布前仍需统一 UI 文案与隐私提示，见第 6 节。
+> 说明：当前 `svg.py` 在 `photos=embed` 时输出 data-URI `<image>`；README 已同步为“整图不嵌入，照片/头像裁剪可嵌入”的 v1.1 默认。发布前仍需统一 UI 文案与隐私提示，见第 6 节。
 
 ---
 

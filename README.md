@@ -117,7 +117,7 @@ On the first run the script clones OpenCV 4.13.0 and builds a minimal
 `build/opencv-min/`). It then freezes the Python core with PyInstaller
 (onedir), compiles the SwiftUI shell, prunes unused Pillow codecs, strips the
 shared libraries, ad-hoc signs every Mach-O file and writes both
-`dist/DistillSVG.app` and `dist/DistillSVG-<version>-<arch>-full.dmg` (ULMO).
+`dist/DistillSVG.app` and `dist/DistillSVG-v1.1-<arch>-full.dmg` (ULMO).
 
 Useful build switches:
 
@@ -140,7 +140,7 @@ git-ignored; the app icon is generated from `mac/make_icon.py` when missing.
 The build is arm64 (when built on Apple Silicon) and **ad-hoc signed, not
 notarized**; recipients must right-click → Open once. The bundle is
 self-contained (no Python required): **~41 MB app / ~14 MB DMG**. A second
-build mode, `BUNDLE_PYTHON=0`, produces a ~1 MB app / ~424 KB DMG that uses a
+build mode, `BUNDLE_PYTHON=0`, produces a ~1 MB app / ~431 KB DMG that uses a
 user-supplied Python 3.10+; install dependencies into it with the command
 shown in the app's `转换 → Python 环境…` panel. GitHub Actions builds both
 DMGs when a `v*` tag is pushed and publishes them as release assets. The app

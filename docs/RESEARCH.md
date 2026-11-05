@@ -471,7 +471,7 @@ emoji 目前就是“彩色小图标”，同样走描摹；识别成 Unicode �
 - [x] SVG + scene JSON
 - [x] 重绘后 OCR 评估
 
-### v0.2（当前原型，已部分完成）
+### v1.1（当前原型，已部分完成）
 
 - [x] 扁平/纯线框双模式（`--style`）
 - [x] 照片/头像 `embed / placeholder / outline`（默认 embed）

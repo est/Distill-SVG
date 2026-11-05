@@ -21,7 +21,12 @@ MAC="$ROOT/mac"
 BUILD="$ROOT/build"
 DIST="$ROOT/dist"
 APP="$DIST/DistillSVG.app"
-VERSION="0.2.0"
+DEFAULT_VERSION="1.1"
+TAG="${TAG:-${GITHUB_REF_NAME:-}}"
+if [[ -z "$TAG" || "$TAG" != v* ]]; then
+    TAG="v${VERSION:-$DEFAULT_VERSION}"
+fi
+VERSION="${VERSION:-${TAG#v}}"
 DMG_FORMAT="${DMG_FORMAT:-ULMO}"
 USE_MIN_OPENCV="${USE_MIN_OPENCV:-1}"
 BUNDLE_PYTHON="${BUNDLE_PYTHON:-1}"
@@ -125,6 +130,10 @@ echo "==> compiling SwiftUI shell ($TARGET)"
 rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 cp "$MAC/Info.plist" "$APP/Contents/Info.plist"
+/usr/libexec/PlistBuddy \
+    -c "Set :CFBundleShortVersionString $VERSION" \
+    -c "Set :CFBundleVersion $VERSION" \
+    "$APP/Contents/Info.plist"
 
 if [[ ! -f "$MAC/AppIcon.icns" ]]; then
     "$PYTHON" "$MAC/make_icon.py" "$MAC/AppIcon.icns"
@@ -214,15 +223,16 @@ if [[ "$BUNDLE_PYTHON" == "1" ]]; then
 else
     DMG_SUFFIX="-python"
 fi
-DMG="$DIST/DistillSVG-${VERSION}-${ARCH}${DMG_SUFFIX}.dmg"
+DMG="$DIST/DistillSVG-${TAG}-${ARCH}${DMG_SUFFIX}.dmg"
 rm -f "$DMG"
 STAGE="$(mktemp -d)"
 cp -R "$APP" "$STAGE/"
-cat > "$STAGE/安装说明.txt" <<'TXT'
-蒸矢 DistillSVG 0.2.0（未签名测试版）
+ln -s /Applications "$STAGE/Applications"
+cat > "$STAGE/安装说明.txt" <<TXT
+蒸矢 DistillSVG ${VERSION}（未签名测试版）
 
 安装
-  1. 把 DistillSVG.app 拖进「应用程序」文件夹。
+  1. 把 DistillSVG.app 拖到 Applications 链接（或拖进「应用程序」文件夹）。
   2. 首次打开若提示“无法验证开发者”：
      在 Finder 中右键 App →「打开」→ 再点「打开」。
      或执行：xattr -dr com.apple.quarantine /Applications/DistillSVG.app

@@ -14,12 +14,13 @@ import argparse
 import sys
 from pathlib import Path
 
+from . import __version__
 from .api import ConvertOptions, convert
 
 
 def parse_args(argv=None):
     p = argparse.ArgumentParser(description="Reconstruct a screenshot as a flat-colour or wireframe SVG.")
-    p.add_argument("--version", action="version", version="distill-svg 0.2.0")
+    p.add_argument("--version", action="version", version=f"distill-svg {__version__}")
     p.add_argument("input", help="screenshot (png/jpg)")
     p.add_argument("-o", "--output", help="output .svg (default: alongside input)")
     p.add_argument("--scene", help="also write the intermediate scene JSON")

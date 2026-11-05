@@ -152,6 +152,9 @@ final class CoreClient {
         var environment = ProcessInfo.processInfo.environment
         environment["PYTHONUNBUFFERED"] = "1"
         environment["PYTHONDONTWRITEBYTECODE"] = "1"
+        if let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String {
+            environment["DISTILL_SVG_VERSION"] = version
+        }
 
         if Self.isExternalRuntime {
             guard let python = Self.detectedPythonPath() else {

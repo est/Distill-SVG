@@ -28,10 +28,11 @@ import sys
 import threading
 import traceback
 
+from . import __version__
 from .api import ConversionCancelled, ConvertOptions, convert
 
 VERSION = 1
-CORE_VERSION = "0.2.0"
+CORE_VERSION = __version__
 
 _out_lock = threading.Lock()
 
