@@ -109,7 +109,10 @@ full build.
 1. full self-contained DMG (`...-full.dmg`)
 2. BYO-Python DMG (`...-python.dmg`)
 3. verifies both DMGs and writes `SHA256SUMS`
-4. uploads artifacts; on a `v*` tag creates a GitHub release
+4. uploads **two separate artifacts** (`...-full`, `...-python`); each
+   artifact is a zip containing its `.dmg` and `SHA256SUMS`
+5. on a `v*` tag, creates a GitHub release with the two raw `.dmg` files as
+   direct assets
 
 The workflow caches the OpenCV source only; the venv/build tree is rebuilt to
 avoid caching absolute paths. The full build needs network for the first

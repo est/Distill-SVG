@@ -51,16 +51,32 @@ jobs:
       - name: Verify DMGs and checksums
         run: |
           ls -lh dist
+          # Both flavours must exist; fail loudly instead of uploading one.
+          test "$(ls -1 dist/*.dmg | wc -l | tr -d ' ')" = "2"
+          test "$(wc -l < dist/SHA256SUMS | tr -d ' ')" = "2"
           for dmg in dist/*.dmg; do
             hdiutil verify "$dmg"
           done
           cat dist/SHA256SUMS
 
-      - uses: actions/upload-artifact@v4
+      # GitHub artifacts are always delivered as a zip.  Upload each flavour
+      # separately so the Actions page shows two clear download entries; the
+      # tag/release step attaches the raw .dmg files as release assets.
+      - name: Upload full DMG
+        uses: actions/upload-artifact@v4
         with:
-          name: DistillSVG-macos-${{ runner.arch }}
+          name: DistillSVG-${{ runner.arch }}-full
           path: |
-            dist/*.dmg
+            dist/*-full.dmg
+            dist/SHA256SUMS
+          if-no-files-found: error
+
+      - name: Upload BYO-Python DMG
+        uses: actions/upload-artifact@v4
+        with:
+          name: DistillSVG-${{ runner.arch }}-python
+          path: |
+            dist/*-python.dmg
             dist/SHA256SUMS
           if-no-files-found: error
 
